@@ -1,0 +1,8 @@
+#!/bin/bash
+#call on gamma, brightness, saturation change
+
+conf=~/.config/profiles/current
+
+xcalib -c
+xgamma -gamma $(~/scr/readvar.sh "$conf" gamma)
+xcalib -b $(~/scr/readvar.sh "$conf" brightness) -co $(~/scr/readvar.sh "$conf" contrast) -a
