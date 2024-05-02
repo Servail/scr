@@ -4,7 +4,7 @@ var=$1
 adj=$2
 min=$3
 max=$4
-conf=~/.config/profiles/current
+conf=~/scr/profiles/current
 
 val="$(~/scr/readvar.sh "$conf" "$var")"
 
@@ -26,6 +26,6 @@ then
 fi
 
 ~/scr/writevar.sh "$conf" "$var" "$val" &>1
-~/scr/notify-replace.sh "$var" "$val"
+~/scr/notify-replace.sh "$var" "$val" &>1
 
 echo "$val"

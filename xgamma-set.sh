@@ -1,7 +1,7 @@
 #!/bin/bash
 #call on gamma change
 
-conf=~/.config/profiles/current
+conf=~/scr/profiles/current
 
 gamma=$(~/scr/readvar.sh "$conf" gamma)
 

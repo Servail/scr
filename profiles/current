@@ -1,9 +1,9 @@
-gamma=1.40
+gamma=1.85
 brightness=5
-contrast=84
+contrast=64
 saturation=.40
 sharpness=.15
-dim=.10
+dim=.15
 
 r=1
 g=1

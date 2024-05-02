@@ -12,7 +12,7 @@ if [ "$#" -eq 9 ]; then
   exit 1
 fi
 
-current=~/.config/profiles/current
+current=~/scr/profiles/current
 source="$1"
 
 if [ "$#" -eq 1 ]; then

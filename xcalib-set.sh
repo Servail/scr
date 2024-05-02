@@ -2,8 +2,8 @@
 #call on contrast and brightness change
 #TODO: make different modes for rgb, w(white) and rgbw(combined, now it is)
 
-conf=~/.config/profiles/current
-icc=~/scr/gamma_1_0.icc
+conf=~/scr/profiles/current
+icc=~/scr/icc/gamma_1_0.icc
 
 brightness=$(~/scr/readvar.sh "$conf" brightness)
 contrast=$(~/scr/readvar.sh "$conf" contrast)

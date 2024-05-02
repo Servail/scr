@@ -2,15 +2,17 @@
 
 #call on saturation, sharpness #or color change -deprecated
 
-conf=~/.config/profiles/current
-tempshader=~/shaders/picom/universal_template.glsl
-activeshader=~/shaders/picom/universal_active.glsl
+conf=~/scr/profiles/current
+tempshader=~/scr/shaders/universal_template.glsl
+activeshader=~/scr/shaders/universal_active.glsl
 
 cp -f "$tempshader" "$activeshader"
 
-sed -i "s\SATURATION_VALUE\\$(~/scr/readvar.sh "$conf" saturation)\g" "$activeshader"
+saturation=$(~/scr/readvar.sh "$conf" saturation)
+sed -i "s\SATURATION_VALUE\\$saturation\g" "$activeshader"
 
-sed -i "s\SHARPNESS_VALUE\\$(~/scr/readvar.sh "$conf" sharpness)\g" "$activeshader"
+sharpness=$(~/scr/readvar.sh "$conf" sharpness)
+sed -i "s\SHARPNESS_VALUE\\$sharpness\g" "$activeshader"
 
 dim=$(~/scr/readvar.sh "$conf" dim)
 sed -i "s\DIM_VALUE\\$dim\g" "$activeshader"

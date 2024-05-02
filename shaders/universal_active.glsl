@@ -2,7 +2,7 @@
 
 #define SATURATION .40
 #define SHARPNESS .15
-#define DIM .10 //dims only light pixels (close to white)
+#define DIM .15 //dims only light pixels (close to white)
 #define DIMSLOPE 1 //the less value the more other colours affected
 #define LUM 0.00 //float 0-1 where 1 is full whitescreen (danger!)
 /*

@@ -2,7 +2,7 @@
 
 #Usage: profile-save.sh <fname> [var1] [var2] ...
 
-source=~/.config/profiles/current
+source=~/scr/profiles/current
 target=$1
 
 if [ $# -eq 0 ]; then
