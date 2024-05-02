@@ -15,4 +15,5 @@ Disable any other compositor for picom to work
 
 Notes:
 
-  Picom uses shader to modify saturation as hack for GPUs that doesn't support CTM
+  Picom uses shader to modify saturation as hack for GPUs that doesn't support native methods
+  
