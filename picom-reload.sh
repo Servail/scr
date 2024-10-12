@@ -17,6 +17,13 @@ sed -i "s\SHARPNESS_VALUE\\$sharpness\g" "$activeshader"
 dim=$(~/scr/readvar.sh "$conf" dim)
 sed -i "s\DIM_VALUE\\$dim\g" "$activeshader"
 
+dimslope=$(~/scr/readvar.sh "$conf" dimslope)
+sed -i "s\DIMSLOPE_VALUE\\$dimslope\g" "$activeshader"
+
+useeffects=$(~/scr/readvar.sh "$conf" useeffects)
+sed -i "s\USEEFFECTS_VALUE\\$useeffects\g" "$activeshader"
+
+
 #sed -i "s\R_VALUE\\$(~/scr/readvar.sh "$conf" r)\g" "$activeshader"
 
 #sed -i "s\G_VALUE\\$(~/scr/readvar.sh "$conf" g)\g" "$activeshader"

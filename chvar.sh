@@ -4,6 +4,7 @@ var=$1
 adj=$2
 min=$3
 max=$4
+mode=$5
 conf=~/scr/profiles/current
 
 val="$(~/scr/readvar.sh "$conf" "$var")"
@@ -17,12 +18,20 @@ fi
 
 if [[ ! -z "$min" ]] && (( $(echo "$val<$min" | bc -l) ))  #if not empty string and...
 then
-  val="$min"
+  if [[ -z "$mode" ]] then
+    val="$min"
+  elif [[ ! -z "$max" ]] && [[ "$mode" == "loop" ]] then
+    val="$max"
+  fi
 fi
 
 if [[ ! -z "$max" ]] && (( $(echo "$val>$max" | bc -l) ))
 then
-  val="$max"
+  if [[ -z "$mode" ]] then
+    val="$max"
+  elif [[ ! -z "$min" ]] && [[ "$mode" == "loop" ]] then
+    val="$min"
+  fi
 fi
 
 ~/scr/writevar.sh "$conf" "$var" "$val" &>1
