@@ -1,9 +1,10 @@
-gamma=1.85
+gamma=.65
 brightness=5
-contrast=64
-saturation=.40
-sharpness=.15
-dim=.15
+contrast=99
+saturation=.55
+sharpness=0
+dim=.25
+dimslope=2.0
 
 r=1
 g=1
@@ -21,3 +22,5 @@ rgamma=1.4
 ggamma=1.4
 bgamma=1.4
 notification-id=32
+useeffects=1
+

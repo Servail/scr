@@ -8,8 +8,8 @@ icc=~/scr/icc/gamma_1_0.icc
 brightness=$(~/scr/readvar.sh "$conf" brightness)
 contrast=$(~/scr/readvar.sh "$conf" contrast)
 
-#gamma=$(~/scr/readvar.sh "$conf" gamma) # not needed with xgamma
-#invgamma=$(echo "scale=2 ; 1 / $gamma" | bc) # not needed with xgamma 
+gamma=$(~/scr/readvar.sh "$conf" gamma) # not needed with xgamma
+invgamma=$(echo "scale=2 ; 1 / $gamma" | bc) # not needed with xgamma 
 
 var=$(~/scr/readvar.sh "$conf" rbrightness)
 rbrightness=$(echo "scale=2 ; $brightness + $var" | bc)
@@ -33,9 +33,9 @@ ratio=$(echo "scale=2 ; $var / 100" | bc)
 bcontrast=$(echo "scale=2 ; $contrast * $ratio" | bc)
 
 xcalib \
--red "1" "$rbrightness" "$rcontrast" \
--green "1" "$gbrightness" "$gcontrast" \
--blue "1" "$bbrightness" "$bcontrast" \
+-red "$invgamma" "$rbrightness" "$rcontrast" \
+-green "$invgamma" "$gbrightness" "$gcontrast" \
+-blue "$invgamma" "$bbrightness" "$bcontrast" \
 "$icc"
 
 
