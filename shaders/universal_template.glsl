@@ -276,7 +276,6 @@ vec4 brightenBlacks(vec4 color)
 	return color;
 }
 
-
 vec4 expandBlacks(vec4 color)
 {
 	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
@@ -288,27 +287,30 @@ vec4 expandBlacks(vec4 color)
 	  //const vec3 white = vec3(1,1,1);
 	  //whiteness = (whiteness-DimThreshold)/(1-DimThreshold); //
 	  //float slopedwhiteness = pow(whiteness,1);
-	  float slopedblackness = 1-pow(whiteness,ExpandBlacksSlope);
+	  float slopedblackness = 1.0-pow(whiteness,ExpandBlacksSlope);
 	  //float slopedblackness = 1-pow(whiteness,0.1);
 	  //float slopedblackness = pow(1-whiteness,128);
 	  //slopedwhiteness *= (1-DimThreshold); //set maximum dim level
 
 	  color.xyz = rgb2hsl(color.rgb);
-	  //color.z = pow(color.z, 0.5);
-	  float slopedsatamt = (1-pow(1-color.y,4)) *pow(1-color.y, 1) *1.87;
+	  ////color.z = pow(color.z, 0.5);
+	  float slopedsatamt = (1.0-pow(1.0-color.y,4.0)) *pow(1.0-color.y, 1.0) *1.87;
+	  
+	  slopedsatamt = clamp(slopedsatamt,0.0,1.0); //NVIDIA FIX
+	  
 	  color.z = mix(color.z, pow(color.z, ExpandBlacksGamma), slopedblackness*ExpandBlacks * (1-slopedsatamt*ExpandBlacksSat)); //curve eval
 		//color.z *= 1-log(pow(whiteness, ExpandBlacksSlope))*ExpandBlacks*(1-slopedsatamt*ExpandBlacksSat); //logarithmic
 		
-	  color.z = clamp(color.z, 0.001, 0.66); //NVIDIA QUICK FIX!!!
-
-	  
-	  if (ExpandBlacksSat>0)
+	  if (ExpandBlacksSat>0.0)
 	    color.y = mix(color.y, pow(color.z, ExpandBlacksGamma), slopedblackness*ExpandBlacks*slopedsatamt*ExpandBlacksSat);//curve eval
-		//color.y *= 1-log(pow(whiteness, ExpandBlacksSlope))*ExpandBlacks*(slopedsatamt*ExpandBlacksSat); //logarithmic
-		
-	  color.y = clamp(color.y, 0.001, 0.8); //NVIDIA QUICK FIX!!!
+		////color.y *= 1-log(pow(whiteness, ExpandBlacksSlope))*ExpandBlacks*(slopedsatamt*ExpandBlacksSat); //logarithmic
 	     
 	  //color.rgb = mix(color.rgb, white, slopedblackness*0.33);
+
+	  //color.x = clamp(color.x, -1000000, 1000000);
+	  //color.y = clamp(color.y, -1, 1);
+	  //color.z = clamp(color.z, -1, 1);
+	  
 	  color.rgb = hsl2rgb(color.xyz);
 
 	  //color.rgb = 1-(1-color.rgb)*(1-(1-pow(whiteness-1, 2)));
