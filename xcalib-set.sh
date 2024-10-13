@@ -7,6 +7,7 @@ icc=~/scr/icc/gamma_1_0.icc
 
 brightness=$(~/scr/readvar.sh "$conf" brightness)
 contrast=$(~/scr/readvar.sh "$conf" contrast)
+
 gamma=$(~/scr/readvar.sh "$conf" gamma) # not needed with xgamma
 invgamma=$(echo "scale=2 ; 1 / $gamma" | bc) # not needed with xgamma 
 

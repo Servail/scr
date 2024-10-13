@@ -2,7 +2,7 @@
 
 //#define FULLSCREEN //ifdef then it's picom shader for fullscreen apps
 
-#define Saturation .50
+#define Saturation .55
 #define Sharpness 0
 
 #define UseEffects 1
@@ -275,7 +275,6 @@ vec4 brightenBlacks(vec4 color)
 	*/
 	return color;
 }
-
 
 vec4 expandBlacks(vec4 color)
 {
