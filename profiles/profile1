@@ -1,0 +1,7 @@
+gamma=1.4
+brightness=3
+contrast=59
+saturation=.40
+sharpness=.25
+
+affects=brightness,contrast,gamma,saturation,sharpness
