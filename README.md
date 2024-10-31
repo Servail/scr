@@ -1,7 +1,6 @@
-Prerequisites: 
-  bc, xcalib, xgamma, picom
+Prerequisites:  
+    bc, xcalib, picom  
 
-Usage:
-  Correct paths in scripts if needed, by default it is ~/scr
-  Bind scripts named *-more *-less *-reset to hotkeys
-  Run profile-save.sh or profile-load.sh for usage
+Usage:  
+    Bind scripts named *-more *-less *-reset to hotkeys  
+    Run profile-save.sh or profile-load.sh for usage  
