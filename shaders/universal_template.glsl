@@ -296,17 +296,15 @@ vec4 expandBlacks(vec4 color)
 	  color.xyz = rgb2hsl(color.rgb);
 	  //color.z = pow(color.z, 0.5);
 	  float slopedsatamt = (1-pow(1-color.y,4)) *pow(1-color.y, 1) *1.87;
+
+	  slopedsatamt = clamp(slopedsatamt, 0.0, 0.1);
+
 	  color.z = mix(color.z, pow(color.z, ExpandBlacksGamma), slopedblackness*ExpandBlacks * (1-slopedsatamt*ExpandBlacksSat)); //curve eval
 		//color.z *= 1-log(pow(whiteness, ExpandBlacksSlope))*ExpandBlacks*(1-slopedsatamt*ExpandBlacksSat); //logarithmic
-		
-	  color.z = clamp(color.z, 0.001, 0.66); //NVIDIA QUICK FIX!!!
 
-	  
 	  if (ExpandBlacksSat>0)
 	    color.y = mix(color.y, pow(color.z, ExpandBlacksGamma), slopedblackness*ExpandBlacks*slopedsatamt*ExpandBlacksSat);//curve eval
 		//color.y *= 1-log(pow(whiteness, ExpandBlacksSlope))*ExpandBlacks*(slopedsatamt*ExpandBlacksSat); //logarithmic
-		
-	  color.y = clamp(color.y, 0.001, 0.8); //NVIDIA QUICK FIX!!!
 	     
 	  //color.rgb = mix(color.rgb, white, slopedblackness*0.33);
 	  color.rgb = hsl2rgb(color.xyz);

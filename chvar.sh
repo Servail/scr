@@ -1,13 +1,19 @@
 #!/bin/bash
 
+path="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+
+conf=$path/profiles/current
+readvar=$path/readvar.sh
+writevar=$path/writevar.sh
+notify=$path/notify-replace.sh
+
 var=$1
 adj=$2
 min=$3
 max=$4
 mode=$5
-conf=~/scr/profiles/current
 
-val="$(~/scr/readvar.sh "$conf" "$var")"
+val="$("$readvar" "$conf" "$var")"
 
 if [[ "$adj" == +* ]] || [[ "$adj" == -* ]]
 then
@@ -34,7 +40,7 @@ then
   fi
 fi
 
-~/scr/writevar.sh "$conf" "$var" "$val" &>1
-~/scr/notify-replace.sh "$var" "$val" &>1
+"$writevar" "$conf" "$var" "$val" &>1
+"$notify" "$var" "$val" &>1
 
 echo "$val"

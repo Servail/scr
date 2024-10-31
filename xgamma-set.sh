@@ -1,9 +1,11 @@
 #!/bin/bash
-#call on gamma change
+#call on gamma change !(old) AMD (or mesa) ONLY!
 
-conf=~/scr/profiles/current
+path="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
-gamma=$(~/scr/readvar.sh "$conf" gamma)
+conf=$path/profiles/current
+
+gamma=$($path/readvar.sh "$conf" gamma)
 
 xgamma -gamma "$gamma"
 

@@ -2,7 +2,12 @@
 
 #Usage: profile-save.sh <fname> [var1] [var2] ...
 
-source=~/scr/profiles/current
+path="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+
+source=$path/profiles/current
+readvar=$path/readvar.sh
+writevar=$path/writevar.sh
+
 target=$1
 
 if [ $# -eq 0 ]; then
@@ -26,7 +31,7 @@ touch "$target"
 for (( i = 2; i < "$#"; i++ ))
 do
   if [ ??? ]; then
-    ./writevar.sh "$target" "$i" "$(./readvar.sh "$source" "$i")"
+    "$writevar" "$target" "$i" "$("$readvar" "$source" "$i")"
   fi 
 done
 

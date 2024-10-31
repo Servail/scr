@@ -12,7 +12,11 @@ if [ "$#" -eq 9 ]; then
   exit 1
 fi
 
-current=~/scr/profiles/current
+path="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+
+current=$path/profiles/current
+writevar=$path/writevar.sh
+
 source="$1"
 
 if [ "$#" -eq 1 ]; then
@@ -20,17 +24,17 @@ if [ "$#" -eq 1 ]; then
   for var in $(cat "$source")
   do
     varname=$(echo "$var" | cut -d '=' -f 1)
-    ~/scr/writevar.sh "$current" "$varname" $(~/scr/readvar.sh "$source" "$varname")
+    "$writevar" "$current" "$varname" $(~/scr/readvar.sh "$source" "$varname")
   done
 else
   for (( i = 2; i < "$#"; i++ ))
   do
-    ~/scr/writevar.sh "$current" "$i" $(~/scr/readvar.sh "$source" "$i")
+    "$writevar" "$current" "$i" $(~/scr/readvar.sh "$source" "$i")
   done
 fi
 
 #load current (NOT NEEDED? just use corresp reloaders on gamma-more etc.)
 #maybe put in profile what is affected
-~/scr/xcalib-set.sh
-~/scr/picom-reload.sh
-~/scr/xgamma-set.sh
+$path/xcalib-set.sh
+$path/picom-reload.sh
+#~/scr/xgamma-set.sh

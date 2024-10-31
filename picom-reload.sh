@@ -2,25 +2,28 @@
 
 #call on saturation, sharpness #or color change -deprecated
 
-conf=~/scr/profiles/current
-tempshader=~/scr/shaders/universal_template.glsl
-activeshader=~/scr/shaders/universal_active.glsl
+path="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+conf=$path/profiles/current
+tempshader=$path/shaders/universal_template.glsl
+activeshader=$path/shaders/universal_active.glsl
+
+readvar=$path/readvar.sh
 
 cp -f "$tempshader" "$activeshader"
 
-saturation=$(~/scr/readvar.sh "$conf" saturation)
+saturation=$("$readvar" "$conf" saturation)
 sed -i "s\SATURATION_VALUE\\$saturation\g" "$activeshader"
 
-sharpness=$(~/scr/readvar.sh "$conf" sharpness)
+sharpness=$("$readvar" "$conf" sharpness)
 sed -i "s\SHARPNESS_VALUE\\$sharpness\g" "$activeshader"
 
-dim=$(~/scr/readvar.sh "$conf" dim)
+dim=$("$readvar" "$conf" dim)
 sed -i "s\DIM_VALUE\\$dim\g" "$activeshader"
 
-dimslope=$(~/scr/readvar.sh "$conf" dimslope)
+dimslope=$("$readvar" "$conf" dimslope)
 sed -i "s\DIMSLOPE_VALUE\\$dimslope\g" "$activeshader"
 
-useeffects=$(~/scr/readvar.sh "$conf" useeffects)
+useeffects=$("$readvar" "$conf" useeffects)
 sed -i "s\USEEFFECTS_VALUE\\$useeffects\g" "$activeshader"
 
 
