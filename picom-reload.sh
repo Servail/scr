@@ -33,6 +33,8 @@ sed -i "s\USEEFFECTS_VALUE\\$useeffects\g" "$activeshader"
 
 #sed -i "s\B_VALUE\\$(~/scr/readvar.sh "$conf" b)\g" "$activeshader"
 
-killall picom
+kill $(pgrep -f "picom ")
 
-picom --backend glx --no-use-damage --window-shader-fg "$activeshader"
+picom --backend glx --no-use-damage --window-shader-fg "$activeshader" &
+
+exit 0
