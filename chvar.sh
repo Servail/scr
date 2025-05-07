@@ -44,3 +44,5 @@ fi
 "$notify" "$var" "$val" &>1
 
 echo "$val"
+
+exit 0

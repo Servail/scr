@@ -1,10 +1,26 @@
 gamma=.65
-brightness=5
-contrast=74
-saturation=.50
-sharpness=.05
-dim=.25
+brightness=0
+contrast=99
+saturation=.55
+sharpness=.80
+roughness=1.00
+dim=0
+lum=1
 dimslope=2.0
+fakehdr=1
+
+expand-blacks=0
+expand-blacks-slope=2
+expand-blacks-gamma=0.25
+expand-blacks-sat=1
+expand-blacks-sat-slope=0.25
+
+exposure-expansion=2
+exposure-expansion-threshold=1
+exposure-expansion-slope=0.5
+exposure-expansion-ignore-level=0.001
+
+black-lightness=.20
 
 r=1
 g=1
@@ -16,11 +32,10 @@ bbrightness=0
 
 rcontrast=100
 gcontrast=95
-bcontrast=95
+bcontrast=90
 
 rgamma=1.4
 ggamma=1.4
 bgamma=1.4
 notification-id=167
 useeffects=1
-

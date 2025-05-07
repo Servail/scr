@@ -24,5 +24,5 @@ else
   echo "Variable $varname changed from $value to $newval"
 fi
 
-#exit 0
+exit 0
 

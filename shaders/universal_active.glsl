@@ -11,37 +11,37 @@
 
 //#define FULLSCREEN //ifdef then it's picom shader for fullscreen apps
 
-#define Saturation SATURATION_VALUE
-#define Sharpness SHARPNESS_VALUE
-#define Roughness ROUGHNESS_VALUE
+#define Saturation .55
+#define Sharpness .80
+#define Roughness 1.00
 #define GammaCorrection 1 //use if system gamma doesn't work or in some special cases
 
-#define UseEffects USEEFFECTS_VALUE
+#define UseEffects 1
 
-#define Dim DIM_VALUE //dims only light pixels (close to white)
-#define DimSlope DIMSLOPE_VALUE //the less value the more colours affected def:1.0
+#define Dim 0 //dims only light pixels (close to white)
+#define DimSlope 2.0 //the less value the more colours affected def:1.0
 #define DimThreshold 0.33 //luminance more than that will be dimmed def:0.33
 #define DimCompensation 1 //1.0=contrast raises proportional to dim, 0=no effect
 
 //DEPRECATED by ExpandBlacks?
-#define Lum LUM_VALUE //brighten blacks, float 0-1 where 1 is full whitescreen (danger!)
+#define Lum 1 //brighten blacks, float 0-1 where 1 is full whitescreen (danger!)
 #define LumSlope 0.25
 #define LumThreshold 0.5 //only pixel with brightness less than that are affected
 //#define LumCompensation 1 //lower black point after luming
 #define LumSat 1
 #define FixedSatRatio 0
 
-#define FakeHdr FAKEHDR_VALUE //remaps colors to make darks more saturated
+#define FakeHdr 1 //remaps colors to make darks more saturated
 
 //Makes colors and shades perceptually even (~fake hdr)
 //Notice you need to lower overall display gamma to ~0.65
-#define ExpandBlacks EXPAND_BLACKS_VALUE //boosts blacks not touching whites
-#define ExpandBlacksSlope EXPAND_BLACKS_SLOPE_VALUE //more = how much whites affected def:0.25
-#define ExpandBlacksGamma EXPAND_BLACKS_GAMMA_VALUE //curve factor for blacks expansion def:0.25
-#define ExpandBlacksSat EXPAND_BLACKS_SAT_VALUE //expands also saturation
-#define ExpandBlacksSatSlope EXPAND_BLACKS_SAT_SLOPE_VALUE //unused
+#define ExpandBlacks 0 //boosts blacks not touching whites
+#define ExpandBlacksSlope 2 //more = how much whites affected def:0.25
+#define ExpandBlacksGamma 0.25 //curve factor for blacks expansion def:0.25
+#define ExpandBlacksSat 1 //expands also saturation
+#define ExpandBlacksSatSlope 0.25 //unused
 
-#define BlackLightness BLACK_LIGHTNESS_VALUE
+#define BlackLightness .20
 
 //Dynamic exposure (contrast) - someway good in fullscreen, anti-flash, eye protection etc.
 
@@ -52,10 +52,10 @@
 #define ExposureSuppressionSlope 0.5 //curve sloppiness, less - affects very bright only def:1
 
 //brighten dark scenes
-#define ExposureExpansion EXPOSURE_EXPANSION_VALUE // 0.5 //factor (0+)
-#define ExposureExpansionThreshold EXPOSURE_EXPANSION_THRESHOLD_VALUE //exposure lower than that will be increased
-#define ExposureExpansionSlope EXPOSURE_EXPANSION_SLOPE_VALUE //curve sloppiness
-#define ExposureExpansionIgnoreLevel  EXPOSURE_EXPANSION_IGNORE_LEVEL_VALUE
+#define ExposureExpansion 2 // 0.5 //factor (0+)
+#define ExposureExpansionThreshold 1 //exposure lower than that will be increased
+#define ExposureExpansionSlope 0.5 //curve sloppiness
+#define ExposureExpansionIgnoreLevel  0.001
 
 #define LumaResX 8
 #define LumaResY 4
