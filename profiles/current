@@ -1,8 +1,8 @@
-gamma=.65
-brightness=0
+gamma=1.40
+brightness=7
 contrast=99
 saturation=.55
-sharpness=.80
+sharpness=1.00
 roughness=1.00
 dim=0
 lum=1
@@ -38,4 +38,4 @@ rgamma=1.4
 ggamma=1.4
 bgamma=1.4
 notification-id=167
-useeffects=1
+useeffects=0

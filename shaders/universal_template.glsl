@@ -14,6 +14,7 @@
 #define Saturation SATURATION_VALUE
 #define Sharpness SHARPNESS_VALUE
 #define Roughness ROUGHNESS_VALUE
+
 #define GammaCorrection 1 //use if system gamma doesn't work or in some special cases
 
 #define UseEffects USEEFFECTS_VALUE
@@ -31,7 +32,7 @@
 #define LumSat 1
 #define FixedSatRatio 0
 
-#define FakeHdr FAKEHDR_VALUE //remaps colors to make darks more saturated
+#define FakeHdr FAKEHDR_VALUE //remaps colors to make lights and darks more saturated and correct overall saturation falloff
 
 //Makes colors and shades perceptually even (~fake hdr)
 //Notice you need to lower overall display gamma to ~0.65
@@ -41,21 +42,21 @@
 #define ExpandBlacksSat EXPAND_BLACKS_SAT_VALUE //expands also saturation
 #define ExpandBlacksSatSlope EXPAND_BLACKS_SAT_SLOPE_VALUE //unused
 
-#define BlackLightness BLACK_LIGHTNESS_VALUE
+#define BlackLightness BLACK_LIGHTNESS_VALUE //classic additive brightness but applied only to darks
 
 //Dynamic exposure (contrast) - someway good in fullscreen, anti-flash, eye protection etc.
 
-//darken bright scenes
+//darken bright scenes DEPRECATED
 #define ExposureSuppression 0.0 //factor (0+) def:0.5
 //#define ExposureSuppressionLimit 1 //upper limit unused
 #define ExposureSuppressionThreshold 0.1 //exposure higher than that will be decreased def:0.1
 #define ExposureSuppressionSlope 0.5 //curve sloppiness, less - affects very bright only def:1
 
-//brighten dark scenes
+//lighten dark scenes
 #define ExposureExpansion EXPOSURE_EXPANSION_VALUE // 0.5 //factor (0+)
 #define ExposureExpansionThreshold EXPOSURE_EXPANSION_THRESHOLD_VALUE //exposure lower than that will be increased
 #define ExposureExpansionSlope EXPOSURE_EXPANSION_SLOPE_VALUE //curve sloppiness
-#define ExposureExpansionIgnoreLevel  EXPOSURE_EXPANSION_IGNORE_LEVEL_VALUE
+#define ExposureExpansionIgnoreLevel  EXPOSURE_EXPANSION_IGNORE_LEVEL_VALUE //stop boosting if too dark
 
 #define LumaResX 8
 #define LumaResY 4
@@ -63,9 +64,11 @@
 #define Debug 0
 float debugValue;
 
-uniform sampler2D tex; //window texture
-in vec2 texcoord; //current pixel coord relative to window texture (0-1)
-//uniform float time; //picom provided time in msec from some point
+uniform sampler2D tex; //picom: window texture
+in vec2 texcoord; //picom: current absolute pixel coord (by texsize)
+//uniform float time; //picom: time in msec from some point
+vec4 default_post_processing(vec4 c); //picom: default compositor effects (dimming, round corners, transparency, etc.)
+
 /*
 vec2 pts[LumaResX*LumaResY] = CalculatePoints();
 
@@ -76,8 +79,6 @@ const vec2[LumaResX*LumaResY] CalculatePoints()
   return points;
 }
 */
-
-vec4 default_post_processing(vec4 c); //picom provided defaults (dimming, round corners, etc.)
 
 
 vec4 GetColor(sampler2D tex, vec2 texcoord)
@@ -96,7 +97,7 @@ vec4 GetSharpenedColor(sampler2D tex, vec2 uv, vec2 texelSize, float sharpness)
     vec4 right = texture2D(tex, uv+vec2(1,0)*texelSize, 0);
     vec4 down = texture2D(tex, uv+vec2(0,-1)*texelSize, 0);
 
-	vec4 c = (1.0 + 4.0*sharpness)*center -sharpness*(up + left + right + down);
+	vec4 c = (1.0 + 4.0*sharpness)*center - sharpness*(up + left + right + down);
 	return c;
 }
 
@@ -195,7 +196,7 @@ vec3 GaussianBlur2D(sampler2D t, vec2 uv, vec2 texelSize, int radius)
 }
 
 
-//Note that uv is in [0,1] so it's coord/texsize
+//Note that uv is in [0,1] so it's texcoord/texsize
 vec4 DualSharpening(sampler2D tex, vec2 uv, vec2 texelSize, int largeRadius, float largeAmount, int smallRadius, float smallAmount)
 {
 	vec4 color = texture2D(tex, uv, 0);
@@ -311,13 +312,13 @@ vec3 DualSharpeningOptimized
     vec3 original = texture(tex, uv).rgb;
     float origLuma = dot(original, vec3(0.2126, 0.7152, 0.0722));
 
-	const vec2 p11 = vec2(-3, -3);
+	////const vec2 p11 = vec2(-3, -3);
 	const vec2 p12 = vec2(-2, -3);
 	const vec2 p13 = vec2(-1, -3);
 	const vec2 p14 = vec2(+0, -3);
 	const vec2 p15 = vec2(+1, -3);
 	const vec2 p16 = vec2(+2, -3);
-	const vec2 p17 = vec2(+3, -3);
+	////const vec2 p17 = vec2(+3, -3);
 
 	const vec2 p21 = vec2(-3, -2);
 	const vec2 p22 = vec2(-2, -2);
@@ -343,6 +344,7 @@ vec3 DualSharpeningOptimized
 	const vec2 p46 = vec2(+2, +0);
 	const vec2 p47 = vec2(+3, +0);
 
+	/* //can just subtract above vectors
 	const vec2 p51 = vec2(-3, +1);
 	const vec2 p52 = vec2(-2, +1);
 	const vec2 p53 = vec2(-1, +1);
@@ -351,32 +353,33 @@ vec3 DualSharpeningOptimized
 	const vec2 p56 = vec2(+2, +1);
 	const vec2 p57 = vec2(+3, +1);
 
-	const vec2 p61 = vec2(-3, +2);
+	//const vec2 p61 = vec2(-3, +2);
 	const vec2 p62 = vec2(-2, +2);
 	const vec2 p63 = vec2(-1, +2);
 	const vec2 p64 = vec2(+0, +2);
 	const vec2 p65 = vec2(+1, +2);
 	const vec2 p66 = vec2(+2, +2);
-	const vec2 p67 = vec2(+3, +2);
+	//const vec2 p67 = vec2(+3, +2);
 
-	const vec2 p71 = vec2(-3, +3);
-	const vec2 p72 = vec2(-2, +3);
+	////const vec2 p71 = vec2(-3, +3);
+	//const vec2 p72 = vec2(-2, +3);
 	const vec2 p73 = vec2(-1, +3);
 	const vec2 p74 = vec2(+0, +3);
 	const vec2 p75 = vec2(+1, +3);
-	const vec2 p76 = vec2(+2, +3);
-	const vec2 p77 = vec2(+3, +3);
+	//const vec2 p76 = vec2(+2, +3);
+	////const vec2 p77 = vec2(+3, +3);
+	*/
 
 	vec3 largeBlur = vec3(0.0);
 	vec3 smallBlur = vec3(0.0);
 
-    largeBlur += texture(tex, uv + p11 * texelSize).rgb;
+    ////largeBlur += texture(tex, uv + p11 * texelSize).rgb;
     largeBlur += texture(tex, uv + p12 * texelSize).rgb;
     largeBlur += texture(tex, uv + p13 * texelSize).rgb;
     largeBlur += texture(tex, uv + p14 * texelSize).rgb;
     largeBlur += texture(tex, uv + p15 * texelSize).rgb;
     largeBlur += texture(tex, uv + p16 * texelSize).rgb;
-    largeBlur += texture(tex, uv + p17 * texelSize).rgb;
+    ////largeBlur += texture(tex, uv + p17 * texelSize).rgb;
 
     largeBlur += texture(tex, uv + p21 * texelSize).rgb;
     largeBlur += texture(tex, uv + p22 * texelSize).rgb;
@@ -388,9 +391,9 @@ vec3 DualSharpeningOptimized
 
     largeBlur += texture(tex, uv + p31 * texelSize).rgb;
     largeBlur += texture(tex, uv + p32 * texelSize).rgb;
-    vec3 s33 = texture(tex, uv + p33 * texelSize).rgb; largeBlur += s33;smallBlur += s33;
+    vec3 s33 = texture(tex, uv + p33 * texelSize).rgb; largeBlur += s33;//smallBlur += s33;
     vec3 s34 = texture(tex, uv + p34 * texelSize).rgb; largeBlur += s34;smallBlur += s34;
-    vec3 s35 = texture(tex, uv + p35 * texelSize).rgb; largeBlur += s35;smallBlur += s35;
+    vec3 s35 = texture(tex, uv + p35 * texelSize).rgb; largeBlur += s35;//smallBlur += s35;
     largeBlur += texture(tex, uv + p36 * texelSize).rgb;
     largeBlur += texture(tex, uv + p37 * texelSize).rgb;
 
@@ -403,33 +406,33 @@ vec3 DualSharpeningOptimized
     largeBlur += texture(tex, uv + p47 * texelSize).rgb;
 
 	//largeBlur +
-    largeBlur += texture(tex, uv + p51 * texelSize).rgb;
-    largeBlur += texture(tex, uv + p52 * texelSize).rgb;
-    vec3 s53 = texture(tex, uv + p53 * texelSize).rgb; largeBlur += s53;smallBlur += s53;
-    vec3 s54 = texture(tex, uv + p54 * texelSize).rgb; largeBlur += s54;smallBlur += s54;
-    vec3 s55 = texture(tex, uv + p55 * texelSize).rgb; largeBlur += s55;smallBlur += s55;
-    largeBlur += texture(tex, uv + p56 * texelSize).rgb;
-    largeBlur += texture(tex, uv + p57 * texelSize).rgb;
+    largeBlur += texture(tex, uv - p31 * texelSize).rgb;
+    largeBlur += texture(tex, uv - p32 * texelSize).rgb;
+    vec3 s53 = texture(tex, uv - p33 * texelSize).rgb; largeBlur += s53;//smallBlur += s53;
+    vec3 s54 = texture(tex, uv - p34 * texelSize).rgb; largeBlur += s54;smallBlur += s54;
+    vec3 s55 = texture(tex, uv - p35 * texelSize).rgb; largeBlur += s55;//smallBlur += s55;
+    largeBlur += texture(tex, uv - p36 * texelSize).rgb;
+    largeBlur += texture(tex, uv - p37 * texelSize).rgb;
 
-    largeBlur += texture(tex, uv + p61 * texelSize).rgb;
-    largeBlur += texture(tex, uv + p62 * texelSize).rgb;
-    largeBlur += texture(tex, uv + p63 * texelSize).rgb;
-    largeBlur += texture(tex, uv + p64 * texelSize).rgb;
-    largeBlur += texture(tex, uv + p65 * texelSize).rgb;
-    largeBlur += texture(tex, uv + p66 * texelSize).rgb;
-    largeBlur += texture(tex, uv + p67 * texelSize).rgb;
+    largeBlur += texture(tex, uv - p21 * texelSize).rgb;
+    largeBlur += texture(tex, uv - p22 * texelSize).rgb;
+    largeBlur += texture(tex, uv - p23 * texelSize).rgb;
+    largeBlur += texture(tex, uv - p24 * texelSize).rgb;
+    largeBlur += texture(tex, uv - p25 * texelSize).rgb;
+    largeBlur += texture(tex, uv - p26 * texelSize).rgb;
+    largeBlur += texture(tex, uv - p27 * texelSize).rgb;
 
-    largeBlur += texture(tex, uv + p71 * texelSize).rgb;
-	largeBlur += texture(tex, uv + p72 * texelSize).rgb;
-	largeBlur += texture(tex, uv + p73 * texelSize).rgb;
-	largeBlur += texture(tex, uv + p74 * texelSize).rgb;
-	largeBlur += texture(tex, uv + p75 * texelSize).rgb;
-	largeBlur += texture(tex, uv + p76 * texelSize).rgb;
-	largeBlur += texture(tex, uv + p77 * texelSize).rgb;
+    ////largeBlur += texture(tex, uv - p11 * texelSize).rgb;
+	largeBlur += texture(tex, uv - p12 * texelSize).rgb;
+	largeBlur += texture(tex, uv - p13 * texelSize).rgb;
+	largeBlur += texture(tex, uv - p14 * texelSize).rgb;
+	largeBlur += texture(tex, uv - p15 * texelSize).rgb;
+	largeBlur += texture(tex, uv - p16 * texelSize).rgb;
+	////largeBlur += texture(tex, uv - p17 * texelSize).rgb;
 
     // Normalize blurs
-    largeBlur /= 49;
-    smallBlur /= 9;
+    largeBlur /= 45;//37;//45;//49;
+    smallBlur /= 5;//5;//9;
 
     // Frequency-separated sharpening
     vec3 largeHP = original - largeBlur;
@@ -1833,21 +1836,98 @@ float getLuma8x4(sampler2D tex) //average luma of 32 uniformly distributed point
 }
 
 
+float getLuma8x4Optimized(sampler2D tex) //average luma of 32 uniformly distributed points for 16x9 displays
+{
+	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
+	//const vec3 percp = vec3(0.3333);
+
+	const vec2 c = vec2(0.5, 0.5);
+
+	const vec2 p11 = vec2(-0.4375, -0.125);
+	const vec2 p12 = vec2(-0.3125, -0.125);
+	const vec2 p13 = vec2(-0.1875, -0.125);
+	const vec2 p14 = vec2(-0.0625, -0.125);
+	const vec2 p15 = vec2(0.0625, -0.125);
+	const vec2 p16 = vec2(0.1875, -0.125);
+	const vec2 p17 = vec2(0.3125, -0.125);
+	const vec2 p18 = vec2(0.4375, -0.125);
+
+	const vec2 p21 = vec2(-0.4375, -0.375);
+	const vec2 p22 = vec2(-0.3125, -0.375);
+	const vec2 p23 = vec2(-0.1875, -0.375);
+	const vec2 p24 = vec2(-0.0625, -0.375);
+	const vec2 p25 = vec2(0.0625, -0.375);
+	const vec2 p26 = vec2(0.1875, -0.375);
+	const vec2 p27 = vec2(0.3125, -0.375);
+	const vec2 p28 = vec2(0.4375, -0.375);
+
+	/*
+	const vec2 p31 = vec2(0.0625, 0.625);
+	const vec2 p32 = vec2(0.1875, 0.625);
+	const vec2 p33 = vec2(0.3125, 0.625);
+	const vec2 p34 = vec2(0.4375, 0.625);
+	const vec2 p35 = vec2(0.5625, 0.625);
+	const vec2 p36 = vec2(0.6875, 0.625);
+	const vec2 p37 = vec2(0.8125, 0.625);
+	const vec2 p38 = vec2(0.9375, 0.625);
+
+	const vec2 p41 = vec2(0.0625, 0.875);
+	const vec2 p42 = vec2(0.1875, 0.875);
+	const vec2 p43 = vec2(0.3125, 0.875);
+	const vec2 p44 = vec2(0.4375, 0.875);
+	const vec2 p45 = vec2(0.5625, 0.875);
+	const vec2 p46 = vec2(0.6875, 0.875);
+	const vec2 p47 = vec2(0.8125, 0.875);
+	const vec2 p48 = vec2(0.9375, 0.875);
+	*/
+
+	float l = 0; //luminance accumulator
+
+	l += dot(texture2D(tex, c+p11).rgb, percp);
+	l += dot(texture2D(tex, c+p12).rgb, percp);
+	l += dot(texture2D(tex, c+p13).rgb, percp);
+	l += dot(texture2D(tex, c+p14).rgb, percp);
+	l += dot(texture2D(tex, c+p15).rgb, percp);
+	l += dot(texture2D(tex, c+p16).rgb, percp);
+	l += dot(texture2D(tex, c+p17).rgb, percp);
+	l += dot(texture2D(tex, c+p18).rgb, percp);
+
+	l += dot(texture2D(tex, c+p21).rgb, percp);
+	l += dot(texture2D(tex, c+p22).rgb, percp);
+	l += dot(texture2D(tex, c+p23).rgb, percp);
+	l += dot(texture2D(tex, c+p24).rgb, percp);
+	l += dot(texture2D(tex, c+p25).rgb, percp);
+	l += dot(texture2D(tex, c+p26).rgb, percp);
+	l += dot(texture2D(tex, c+p27).rgb, percp);
+	l += dot(texture2D(tex, c+p28).rgb, percp);
+
+	l += dot(texture2D(tex, c-p21).rgb, percp);
+	l += dot(texture2D(tex, c-p22).rgb, percp);
+	l += dot(texture2D(tex, c-p23).rgb, percp);
+	l += dot(texture2D(tex, c-p24).rgb, percp);
+	l += dot(texture2D(tex, c-p25).rgb, percp);
+	l += dot(texture2D(tex, c-p26).rgb, percp);
+	l += dot(texture2D(tex, c-p27).rgb, percp);
+	l += dot(texture2D(tex, c-p28).rgb, percp);
+
+	l += dot(texture2D(tex, c-p11).rgb, percp);
+	l += dot(texture2D(tex, c-p12).rgb, percp);
+	l += dot(texture2D(tex, c-p13).rgb, percp);
+	l += dot(texture2D(tex, c-p14).rgb, percp);
+	l += dot(texture2D(tex, c-p15).rgb, percp);
+	l += dot(texture2D(tex, c-p16).rgb, percp);
+	l += dot(texture2D(tex, c-p17).rgb, percp);
+	l += dot(texture2D(tex, c-p18).rgb, percp);
+
+	return l / 32; //luminance normalization
+}
+
+
 vec3 ExpandExposure(vec3 rgb, sampler2D tex, vec2 texcoord, float exposureExpansion, float ignoreLevel)
 {
-	float e = getLuma8x4(tex);
+	float e = getLuma8x4Optimized(tex);
 	//e = min(0.7,e)/0.7;
 	debugValue = e;
-
-	//if (e > ExposureSuppressionLimit)
-
-	//gif (e > ExposureSuppressionThreshold && ExposureSuppression > 0) //suppress
-	//{
-	//	e = (e-ExposureSuppressionThreshold)/(1-ExposureSuppressionThreshold); //normalize
-	//	//l = remap(l, ExposureSuppressionThreshold, ExposureSuppressionLimit, 0, 1);
-	//	rgb *= 1-rampBot(e,ExposureSuppressionSlope)*ExposureSuppression;
-
-	//}
 
 	if (e < ExposureExpansionThreshold && exposureExpansion > 0) //expand
 	{
@@ -1857,12 +1937,6 @@ vec3 ExpandExposure(vec3 rgb, sampler2D tex, vec2 texcoord, float exposureExpans
 		//color.rgb *= 1/l*ExposureExpansion;
 		//color.rgb *= 1+ (1-log(l)*ExposureExpansionSlope-1)*ExposureExpansion;
 
-		/* //hard clipped boost
-		const float maxmul = pow(1-log(ExposureExpansionIgnoreLevel)*ExposureExpansion, ExposureExpansionSlope);
-
-		if (l > ExposureExpansionIgnoreLevel) color.rgb *= 1-log(pow(l, ExposureExpansionSlope))*ExposureExpansion;
-		else color.rgb *= maxmul;
-		*/
 
 
 		//soft clipped boost
@@ -1912,7 +1986,7 @@ vec3 ExpandExposure(vec3 rgb, sampler2D tex, vec2 texcoord, float exposureExpans
 			//rgb = rampMid(rgb,f);
 
 			//dynamic fine tuned contrast vs gamma
-			rgb = mix(rampTop(rgb,f), rampBot(rgb,1/f), 0.25);
+			rgb = mix(rampTop(rgb,f), rampBot(rgb,e), 0.25);
 
 			rgb = clamp(rgb, 0, 1);
 
@@ -2378,6 +2452,7 @@ vec3 FixSat(vec3 rgb)
 
 	//!!REFILL
 	hsl.y = mix(Saturation, 2-Saturation, fillmix);
+	//hsl.y = mix(Saturation, 1, fillmix);
 	//hsl.y = mix(Saturation, Saturation*4, fillmix);
 	//hsl.y = mix(Saturation, Saturation*2, fillmix);
 
