@@ -2897,8 +2897,9 @@ vec3 Dehaze(vec3 rgb, ColHist net, float amount)
 	//rgb.b = rgb.b-1*huefac*rgb.b;//*dot(rgb,vec3(0,0,1));
 	//rgb = rgb - clamp( net.avg.rgb*(dot(net.avg.rgb,rgb)), 0.0001, length(rgb) ); //good?
 	rgb = Saturate(rgb,1+(2*amount*effect));
-	rgb = rgb * (oldlum/dot(rgb,percp));
-	rgb = clamp(rgb,0.00001,1);
+	float newlum = max(dot(rgb,percp), 1e-10); //prevent div by zero (1e-10 ~ epsilon)
+	rgb = rgb * (oldlum/newlum);
+	rgb = clamp(rgb,0,1);
 	//rgb = rgb * (oldlum/((rgb.r+rgb.g+rgb.b)/3));
 
 
