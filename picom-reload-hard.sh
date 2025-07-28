@@ -6,59 +6,137 @@ path="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
 conf=$path/profiles/current
 
-tempshader=$path/shaders/universal_template.glsl
+sourceshader=$path/shaders/universal_template.glsl
 
-activeshader=$path/shaders/universal_active.glsl
+tempshader=/dev/shm/shader.glsl
 
 readvar=$path/readvar.sh
 
-cp -f "$tempshader" "$activeshader"
+#kill picom first to give it time to close
+kill $(pgrep -f "picom ")
 
-replace() #1=target string in shader #2=var name in config
+#copy shader template to RAM to avoid disk writes
+#tempshader="$(cat $path/shaders/universal_template.glsl)"
+cp -f "$sourceshader" "$tempshader"
+
+#replaces definition values with new values
+redefine() #1=target define in shader, #2=new value #3=target shader file
+{
+  tgstr="$1"
+  newval="$2"
+  tgshader="$3"
+  #if [[ $# -ne 1 ]]; then
+  if [[ -z  "$tgshader" ]]; then
+    tgshader="$tempshader"
+  fi
+  #sed -E -i "s/^#define[[:space:]]+$tgstr\\b.*/#define $tgstr $newval/" "$tgshader"
+  sed -E -i "s/^(#define[[:space:]]+${tgstr}[[:space:]]+)\w+(\s*.*)/#define ${tgstr} ${newval}\2/" "$tgshader"
+}
+
+#replaces definition values with values readen from config (by var name)
+cfgredf() #1=target define in shader #2=var name in config
 {
   tgstr="$1"
   varname="$2"
   val=$("$readvar" "$conf" "$varname")
-  sed -i "s\\$tgstr\\$val\g" "$activeshader"
+  redefine "$tgstr" "$val" "$tempshader"
 }
 
-replace SATURATION_VALUE saturation
+cfg()
+{
+	echo $("$readvar" "$conf" "$1")
+}
 
-replace SHARPNESS_VALUE sharpness
+#simple string replacement
+replace_string() #1=target string #2=new string #3=target file
+{
+  tgstr="$1"
+  newstr="$2"
+  tgfile="$3"
+  sed -i "s\\$tgstr\\$newstr\g" "$tgfile"
+}
 
-replace ROUGHNESS_VALUE roughness
+#redefine template shader parameters
+cfgredf Gamma gamma
+cfgredf Contrast contrast
+cfgredf Brightness brightness
+cfgredf Saturation saturation
+cfgredf Sharpness sharpness
+cfgredf Roughness roughness
+cfgredf Dim dim
+cfgredf DimSlope dimslope
+cfgredf UseEffects useeffects
 
-replace DIM_VALUE dim
+cfgredf ExpandBlacks expand-blacks
+cfgredf ExpandBlacksSlope expand-blacks-slope
+cfgredf ExpandBlacksGamma expand-blacks-gamma
+cfgredf ExpandBlacksSat expand-blacks-sat
+cfgredf ExpandBlacksSatSlope expand-blacks-sat-slope
 
-replace DIMSLOPE_VALUE dimslope
+cfgredf Lum lum
 
-replace USEEFFECTS_VALUE useeffects
+cfgredf FakeHdr fakehdr
 
-replace EXPAND_BLACKS_VALUE expand-blacks
-replace EXPAND_BLACKS_SLOPE_VALUE expand-blacks-slope
-replace EXPAND_BLACKS_GAMMA_VALUE expand-blacks-gamma
-replace EXPAND_BLACKS_SAT_VALUE expand-blacks-sat
-replace EXPAND_BLACKS_SAT_SLOPE_VALUE expand-blacks-sat-slope
-
-replace LUM_VALUE lum
-
-replace FAKEHDR_VALUE fakehdr
-
-replace EXPOSURE_EXPANSION_VALUE exposure-expansion
-replace EXPOSURE_EXPANSION_THRESHOLD_VALUE exposure-expansion-threshold
-replace EXPOSURE_EXPANSION_SLOPE_VALUE exposure-expansion-slope
-replace EXPOSURE_EXPANSION_IGNORE_LEVEL_VALUE exposure-expansion-ignore-level
+cfgredf ExposureExpansion exposure-expansion
+cfgredf ExposureExpansionThreshold exposure-expansion-threshold
+cfgredf ExposureExpansionSlope exposure-expansion-slope
+cfgredf ExposureExpansionIgnoreLevel exposure-expansion-ignore-level
 
 
-replace BLACK_LIGHTNESS_VALUE black-lightness
-#sed -i "s\R_VALUE\\$(~/scr/readvar.sh "$conf" r)\g" "$activeshader"
+cfgredf BlackLightness black-lightness
 
-#sed -i "s\G_VALUE\\$(~/scr/readvar.sh "$conf" g)\g" "$activeshader"
+cfgredf AutoBalance autobalance
 
-#sed -i "s\B_VALUE\\$(~/scr/readvar.sh "$conf" b)\g" "$activeshader"
+#sed -i "s\R_VALUE\\$(~/scr/readvar.sh "$conf" r)\g" "$tempshader"
 
-kill $(pgrep -f "picom ")
+#sed -i "s\G_VALUE\\$(~/scr/readvar.sh "$conf" g)\g" "$tempshader"
 
-picom --backend glx --no-use-damage --window-shader-fg "$activeshader" & disown
+#sed -i "s\B_VALUE\\$(~/scr/readvar.sh "$conf" b)\g" "$tempshader"
+
+#kill $(pgrep -f "picom ")
+
+#picom --backend glx --no-use-damage --window-shader-fg-rule "$tempshader":'_NET_WM_STATE@[*] *?= "MAXIMIZED" || _NET_WM_STATE@[*] *?= "FULLSCREEN"' & disown
+#picom --backend glx --no-use-damage --window-shader-fg-rule $fullscreenshader:'focused=1' --window-shader-fg-rule $windowshader:'focused=0' & disown
+
+fullscreenshader=/dev/shm/fullscreen_shader.glsl
+windowshader=/dev/shm/window_shader.glsl
+
+cp -f "$tempshader" "$fullscreenshader"
+cp -f "$tempshader" "$windowshader"
+
+redefine CURRENT_FXSTACK FXStack "$fullscreenshader"
+redefine CURRENT_FXSTACK FXStack_Basic "$windowshader"
+
+picom --backend glx --no-use-damage \
+	--window-shader-fg $windowshader \
+	--window-shader-fg-rule "$fullscreenshader":'_NET_WM_STATE@[*] *?= "MAXIMIZED"
+	|| _NET_WM_STATE@[*] *?= "FULLSCREEN"' \
+	& disown
+
+#_NET_WM_STATE rule for fullscreen detection not applied immediately after reload, the workaround is to remaximize or refocus the window after picom finishes loading TODO: FIX THIS, try by size and coords
+sleep 0.5
+
+active_win=$(xdotool getactivewindow)
+another_win=$(xdotool search --onlyvisible "xfce4-panel")
+xdotool windowactivate $another_win
+# for win in $(xdotool search --onlyvisible "xfce4-panel"); do
+# 	xdotool windowactivate $win
+# #	sleep 0.05
+# done
+sleep 0.05
+xdotool windowactivate $active_win
+
+# if [[ ! -z "$(xprop | grep _NET_WM_STATE_FULLSCREEN)" ]]; then
+# 	wmctrl -r :ACTIVE: -b remove,fullscreen
+# 	wmctrl -r :ACTIVE: -b add,fullscreen
+# else
+# 	wmctrl -r :ACTIVE: -b toggle,maximized_vert,maximized_horz
+# 	wmctrl -r :ACTIVE: -b toggle,maximized_vert,maximized_horz
+# fi
+
+#picom --backend glx --no-use-damage \
+#	--window-shader-fg $windowshader \
+#	--window-shader-fg-rule "$fullscreenshader":'fullscreen' \
+#	& disown
 
 exit 0

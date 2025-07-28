@@ -12,10 +12,13 @@
 //#define FULLSCREEN //ifdef then it's picom shader for fullscreen apps
 
 #define Saturation SATURATION_VALUE
-#define Sharpness SHARPNESS_VALUE
-#define Roughness ROUGHNESS_VALUE
+#define Sharpness SHARPNESS_VALUE //small details
+#define Roughness ROUGHNESS_VALUE //large details
 
-#define GammaCorrection 1 //use if system gamma doesn't work or in some special cases
+//use if system color mgmt doesn't work or in some special cases
+#define Gamma 1
+#define Contrast 1
+#define Brightness 0
 
 #define UseEffects USEEFFECTS_VALUE
 
@@ -33,6 +36,7 @@
 #define FixedSatRatio 0
 
 #define FakeHdr FAKEHDR_VALUE //remaps colors to make lights and darks more saturated and correct overall saturation falloff
+#define AutoBalance AUTOBALANCE_VALUE //auto color balance amount
 
 //Makes colors and shades perceptually even (~fake hdr)
 //Notice you need to lower overall display gamma to ~0.65
@@ -63,6 +67,8 @@
 
 #define Debug 0
 float debugValue;
+
+const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 
 uniform sampler2D tex; //picom: window texture
 in vec2 texcoord; //picom: current absolute pixel coord (by texsize)
@@ -97,7 +103,8 @@ vec4 GetSharpenedColor(sampler2D tex, vec2 uv, vec2 texelSize, float sharpness)
     vec4 right = texture2D(tex, uv+vec2(1,0)*texelSize, 0);
     vec4 down = texture2D(tex, uv+vec2(0,-1)*texelSize, 0);
 
-	vec4 c = (1.0 + 4.0*sharpness)*center - sharpness*(up + left + right + down);
+	//vec4 c = (1.0 + 4.0*sharpness)*center - sharpness*(up + left + right + down);
+	vec4 c = (1.0 + 1.0*sharpness)*center - sharpness*(up + left + right + down)/4;
 	return c;
 }
 
@@ -297,7 +304,7 @@ vec3 DualSharpeningSinglePass
 }
 
 
-vec3 DualSharpeningOptimized
+vec4 DualSharpeningOptimized
 (
     sampler2D tex,
     vec2 uv,
@@ -308,8 +315,9 @@ vec3 DualSharpeningOptimized
     float smallAmount
 )
 {
+	vec4 color = texture(tex, uv);
     //const int MAX_RADIUS = 5;
-    vec3 original = texture(tex, uv).rgb;
+    vec3 original = color.rgb;
     float origLuma = dot(original, vec3(0.2126, 0.7152, 0.0722));
 
 	////const vec2 p11 = vec2(-3, -3);
@@ -443,7 +451,9 @@ vec3 DualSharpeningOptimized
     //float resultLuma = dot(result, vec3(0.2126, 0.7152, 0.0722));
     //result = result * (origLuma / (resultLuma + 1e-6));
 
-	return result;
+	result = clamp(result, 0, 1);
+	color.rgb = result;
+	return color;
 }
 
 
@@ -508,10 +518,10 @@ vec3 Saturate(vec3 rgb, float saturation)
 	//0.2989 0.5870 0.1140 NTSC
 	//0.2126 0.7152 0.0722 luminance signal EY
 	//0.2627 0.6780 0.0593 UHDTV
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 	vec3 intensity = vec3(dot(rgb, percp));
 	//vec3 intensity = vec3((color.r + color.g + color.b) / 3); //brightness based
     rgb = mix(intensity, rgb, saturation);
+	rgb = clamp(rgb, 0, 1);
 	return rgb;
 }
 
@@ -1500,6 +1510,11 @@ vec3 rampMid(vec3 value, float power) //bulge near top right, bump with pow >1
 	return value;
 }
 
+float rampMid2(float value) //hyperbolic
+{
+	return 1/(value+0.618034)-0.618034;
+}
+
 
 float slopeTop(float value, float power) //bulge near bottom right, bump with pow <1
 {
@@ -1527,7 +1542,7 @@ float powRampShifted(float value, float power, float shift)
 
 float saw(float value, float freq)
 {
-	return abs(mod(freq*2*value,2)-1);
+	return abs(mod(freq*value+freq-1,2)-1);
 }
 
 
@@ -1538,7 +1553,7 @@ float saw(float value, float freq)
 
 
 
-//FANCY POSTPROCESSING
+//FANCY POSTPROCESSING FUNCTIONS
 
 vec3 DimWhites(vec3 rgb, float dim, float dimThreshold, float dimSlope, float dimCompensation, float lumaRatio)
 {
@@ -1546,7 +1561,6 @@ vec3 DimWhites(vec3 rgb, float dim, float dimThreshold, float dimSlope, float di
 	//float whiteness = remap(whitenessdot, 0.5, 1, 0, 1);
 	//float whiteness = (whitenessdot-0.5)*2;
 	//float whiteness = (color.r + color.g + color.b)/3; //brightness based
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 	float whiteness = mix(rgb2hsl(rgb).z, dot(rgb, percp), lumaRatio); //brightness based
 
 	if (whiteness > dimThreshold)
@@ -1574,7 +1588,6 @@ vec3 DimWhites(vec3 rgb, float dim, float dimThreshold, float dimSlope, float di
 
 vec4 brightenBlacks(vec4 color)
 {
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 	float whiteness = dot(color.rgb, percp);
 	//float whiteness = (color.r+color.g+color.b)/3; //brightness based, better results here
 
@@ -1613,7 +1626,6 @@ vec4 brightenBlacks(vec4 color)
 
 vec3 expandBlacks1(vec3 rgb, float lumaRatio)
 {
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 	vec3 hsl = rgb2hsl(rgb);
 	float whiteness = mix(hsl.z, dot(rgb, percp), //luminance based
 	  lumaRatio); //brightness based, better results here?
@@ -1668,7 +1680,6 @@ vec3 expandBlacks1(vec3 rgb, float lumaRatio)
 
 vec3 expandBlacks(vec3 rgb, float lumaRatio)
 {
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 
 	vec3 hsl = rgb2hsl(rgb);
 	float l = mix(hsl.z, dot(rgb, percp), lumaRatio);
@@ -1686,7 +1697,6 @@ vec3 expandBlacks(vec3 rgb, float lumaRatio)
 
 float getLuma5x5(sampler2D tex) //average luma of 25 uniformly distributed points for 4x3 displays
 {
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 
 	const vec2 p11 = vec2(0.1,0.1);
 	const vec2 p12 = vec2(0.3,0.1);
@@ -1756,7 +1766,6 @@ float getLuma5x5(sampler2D tex) //average luma of 25 uniformly distributed point
 
 float getLuma8x4(sampler2D tex) //average luma of 32 uniformly distributed points for 16x9 displays
 {
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 
 	const vec2 p11 = vec2(0.0625, 0.125);
 	const vec2 p12 = vec2(0.1875, 0.125);
@@ -1838,8 +1847,6 @@ float getLuma8x4(sampler2D tex) //average luma of 32 uniformly distributed point
 
 float getLuma8x4Optimized(sampler2D tex) //average luma of 32 uniformly distributed points for 16x9 displays
 {
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
-	//const vec3 percp = vec3(0.3333);
 
 	const vec2 c = vec2(0.5, 0.5);
 
@@ -1923,95 +1930,298 @@ float getLuma8x4Optimized(sampler2D tex) //average luma of 32 uniformly distribu
 }
 
 
-vec3 ExpandExposure(vec3 rgb, sampler2D tex, vec2 texcoord, float exposureExpansion, float ignoreLevel)
+struct ColHist
 {
-	float e = getLuma8x4Optimized(tex);
-	//e = min(0.7,e)/0.7;
-	debugValue = e;
+	vec4 avg;
+	vec4 var;
+	vec4 min;
+	vec4 max;
+} colHist;
 
-	if (e < ExposureExpansionThreshold && exposureExpansion > 0) //expand
+vec4 accdev(vec4 acc, vec4 s)
+{
+	acc.r += s.r*s.r;
+	acc.g += s.g*s.g;
+	acc.b += s.b*s.b;
+	return acc;
+}
+
+vec4 setmin(vec4 cmin, vec4 s)
+{
+	cmin.r=min(cmin.r,s.r);
+	cmin.g=min(cmin.g,s.g);
+	cmin.b=min(cmin.b,s.b);
+	return cmin;
+}
+
+vec4 setmax(vec4 cmax, vec4 s)
+{
+	cmax.r=max(cmax.r,s.r);
+	cmax.g=max(cmax.g,s.g);
+	cmax.b=max(cmax.b,s.b);
+	return cmax;
+}
+
+//also needs min/maxluma? avgmax? avgmin? (last nonzero)
+ColHist GetColor8x4Optimized(sampler2D tex) //net color of 32 uniformly distributed points for 16x9 displays
+{
+
+	const vec2 c = vec2(0.5, 0.5);
+
+	const vec2 p11 = vec2(-0.4375, -0.125);
+	const vec2 p12 = vec2(-0.3125, -0.125);
+	const vec2 p13 = vec2(-0.1875, -0.125);
+	const vec2 p14 = vec2(-0.0625, -0.125);
+	const vec2 p15 = vec2(0.0625, -0.125);
+	const vec2 p16 = vec2(0.1875, -0.125);
+	const vec2 p17 = vec2(0.3125, -0.125);
+	const vec2 p18 = vec2(0.4375, -0.125);
+
+	const vec2 p21 = vec2(-0.4375, -0.375);
+	const vec2 p22 = vec2(-0.3125, -0.375);
+	const vec2 p23 = vec2(-0.1875, -0.375);
+	const vec2 p24 = vec2(-0.0625, -0.375);
+	const vec2 p25 = vec2(0.0625, -0.375);
+	const vec2 p26 = vec2(0.1875, -0.375);
+	const vec2 p27 = vec2(0.3125, -0.375);
+	const vec2 p28 = vec2(0.4375, -0.375);
+
+	/*
+	const vec2 p31 = vec2(0.0625, 0.625);
+	const vec2 p32 = vec2(0.1875, 0.625);
+	const vec2 p33 = vec2(0.3125, 0.625);
+	const vec2 p34 = vec2(0.4375, 0.625);
+	const vec2 p35 = vec2(0.5625, 0.625);
+	const vec2 p36 = vec2(0.6875, 0.625);
+	const vec2 p37 = vec2(0.8125, 0.625);
+	const vec2 p38 = vec2(0.9375, 0.625);
+
+	const vec2 p41 = vec2(0.0625, 0.875);
+	const vec2 p42 = vec2(0.1875, 0.875);
+	const vec2 p43 = vec2(0.3125, 0.875);
+	const vec2 p44 = vec2(0.4375, 0.875);
+	const vec2 p45 = vec2(0.5625, 0.875);
+	const vec2 p46 = vec2(0.6875, 0.875);
+	const vec2 p47 = vec2(0.8125, 0.875);
+	const vec2 p48 = vec2(0.9375, 0.875);
+	*/
+
+	vec4 s = vec4(0); //current sample
+	vec4 col = vec4(0); //color accumulator
+	vec4 dev = vec4(0); //deviation accumulator
+	vec4 min = vec4(1); //minimum
+	vec4 max = vec4(0); //maximum
+
+	s = Tex2D(tex, c+p11);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c+p12);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c+p13);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c+p14);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c+p15);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c+p16);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c+p17);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c+p18);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+
+	s = Tex2D(tex, c+p21);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c+p22);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c+p23);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c+p24);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c+p25);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c+p26);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c+p27);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c+p28);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+
+	s = Tex2D(tex, c-p21);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c-p22);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c-p23);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c-p24);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c-p25);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c-p26);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c-p27);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c-p28);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+
+	s = Tex2D(tex, c-p11);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c-p12);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c-p13);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c-p14);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c-p15);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c-p16);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c-p17);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	s = Tex2D(tex, c-p18);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+
+	vec4 var;
+	var.r = (dev.r - col.r*col.r / 32) / (32 - 0);
+	var.g = (dev.g - col.g*col.g / 32) / (32 - 0);
+	var.b = (dev.b - col.b*col.b / 32) / (32 - 0);
+
+	return ColHist(col / 32, var, min, max);
+	//return col / 32; //normalization
+}
+
+
+vec3 dehaze(vec3 color, vec3 netrgb) {
+    // Calculate relative color strengths
+    vec3 ratios = netrgb / dot(netrgb, vec3(1.0));
+
+    // Find neutral white target (preserve luminance)
+    float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    vec3 neutral = vec3(luminance);
+
+    // Create color correction matrix
+    mat3 correction = mat3(
+        neutral.r / ratios.r, 0.0, 0.0,
+        0.0, neutral.g / ratios.g, 0.0,
+        0.0, 0.0, neutral.b / ratios.b
+    );
+
+    // Apply correction with exposure preservation
+    vec3 result = correction * color;
+
+    // Maintain original brightness ratio
+    return result * (dot(color, vec3(0.333)) / dot(result, vec3(0.333)));
+}
+
+
+vec3 AutoWhiteBalance(vec3 color, vec3 avg, vec3 min_rgb, vec3 max_rgb)
+{
+    // 1. Calculate global white point
+    float global_max = max(max(max_rgb.r, max_rgb.g), max_rgb.b);
+    vec3 white_point = vec3(global_max) - (vec3(global_max) - avg) * 0.5;
+
+    // 2. Compute per-channel scaling factors
+    vec3 scale = white_point / (avg + 0.001);
+
+    // 3. Apply correction with range constraints
+    vec3 corrected = color * scale;
+
+    // 4. Soft clipping to prevent oversaturation
+    vec3 safe_max = min(max_rgb * 2.0, vec3(1.0));
+    //corrected = clamp(corrected, min_rgb, safe_max);
+
+    // 5. Maintain original luminance
+    float orig_lum = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    float new_lum = dot(corrected, vec3(0.2126, 0.7152, 0.0722));
+    corrected = corrected * (orig_lum / (new_lum + 0.0001));
+	corrected = clamp(corrected, 0, 1);
+	return corrected;
+}
+
+
+vec3 AutoWhiteBalance2(vec3 rgb, vec3 avg, vec3 min_rgb, vec3 max_rgb)
+{
+	float cmin = min(min_rgb.r,min(min_rgb.g,min_rgb.b));
+	float   cmax = max(max_rgb.r,max(max_rgb.g,max_rgb.b));
+	float oldlum = dot(rgb,percp);
+	rgb.r = rgb.r - avg.r + avg.g*rgb.g + avg.b*rgb.b;
+	rgb.g = rgb.g - avg.g + avg.r*rgb.r + avg.b*rgb.b;
+	rgb.b = rgb.b - avg.b + avg.r*rgb.r + avg.g*rgb.g;
+
+	//rgb.r = rgb.r - avg.r*2 + avg.g + avg.b;
+	//rgb.g = rgb.g - avg.g*2 + avg.r + avg.b;
+	//rgb.b = rgb.b - avg.b*2 + avg.r + avg.g;
+
+	rgb = clamp(rgb,0,1);
+	rgb = rgb * (oldlum/(dot(rgb,percp)+0.0001));
+	rgb = clamp(rgb,0,1);
+
+	return rgb;
+}
+
+
+vec3 ExpandExposure(vec3 rgb, ColHist net, float exposureExpansion, float ignoreLevel)
+{
+
+	//avg luma
+	float lavg = dot(net.avg.rgb,percp);
+	//float lavg = dot(net.avg.rgb,vec3(0.3333));
+	//float lavg = rgb2hsl(net.avg.rgb).z;
+	//lavg = min(0.7,lavg)/0.7;
+	debugValue = lavg;
+
+	//rgb = clamp(rgb,0,1);
+
+	if (lavg < ExposureExpansionThreshold && exposureExpansion > 0) //expand
 	{
-		e = e/ExposureExpansionThreshold; //normalize?
+		lavg = lavg/ExposureExpansionThreshold; //normalize?
 
-		//color.rgb *= 1+ rampBot(1-l,ExposureExpansionSlope)*ExposureExpansion;
-		//color.rgb *= 1/l*ExposureExpansion;
-		//color.rgb *= 1+ (1-log(l)*ExposureExpansionSlope-1)*ExposureExpansion;
+		lavg = max(lavg,ignoreLevel); //faster than if
+		//lavg = min(l,0.8);
+		lavg = lavg / exposureExpansion;
+		lavg = rampBot(lavg,ExposureExpansionSlope);
+		//lavg *= slopeBottom(lavg,0.125    );
+		//debugValue = l;
+		float f = 1/lavg;
+		float slope = 4;
 
+		float l = dot(rgb, vec3(0.3333));
+		l=clamp(l,0,1);
+		//l=1;
 
+		vec3 hsl = rgb2hsl(rgb);
+		// if (hsl.z<1) hsl.z = rampTop(hsl.z, f) ;
+		//if (hsl.z<1) hsl.z = hsl.z*f;
+		//float dark = 1-rampBot(l, 4);
+		//dark = clamp(dark, 0.1, 0.9);
+		//if (hsl.z<1) hsl.z = mix(hsl.z, rampTop(hsl.z, f), dark );
+		//hsl.z = clamp(hsl.z, 0, 1);
 
-		//soft clipped boost
-
-		//if (e > ExposureExpansionIgnoreLevel)
-		//{
-			e = max(e,ignoreLevel); //better/faster limit?
-			//e = min(l,0.8);
-			e = e / exposureExpansion;
-			e = rampBot(e,ExposureExpansionSlope);
-			//e *= slopeBottom(e,0.125    );
-			//debugValue = l;
-			float f = 1/e;
-			float slope = 4;
-
-			float l = dot(rgb, vec3(0.3333));
-			l=clamp(l,0,1);
-			//l=1;
-
-			vec3 hsl = rgb2hsl(rgb);
-			// if (hsl.z<1) hsl.z = rampTop(hsl.z, f) ;
-			//if (hsl.z<1) hsl.z = hsl.z*f;
-			//float dark = 1-rampBot(l, 4);
-			//dark = clamp(dark, 0.1, 0.9);
-			//if (hsl.z<1) hsl.z = mix(hsl.z, rampTop(hsl.z, f), dark );
-			//hsl.z = clamp(hsl.z, 0, 1);
-
-			// if (hsl.y<1) hsl.y = hsl.y*f; //works well with rgb2hsl but not with rgb2hsl?
-			//hsl.y = clamp(hsl.y, 0, 1);
+		// if (hsl.y<1) hsl.y = hsl.y*f; //works well with rgb2hsl but not with rgb2hsl?
+		//hsl.y = clamp(hsl.y, 0, 1);
 
 
 
-			//rgb = rgb2hsl(hsl);
+		//rgb = rgb2hsl(hsl);
 
-			//dynamic gamma
-			//if (rgb.r>0 && rgb.r<1) rgb.r = rampBot(rgb.r, 1/(1+f/1));
-			//if (rgb.g>0 && rgb.g<1) rgb.g = rampBot(rgb.g, 1/(1+f/1));
-			//if (rgb.b>0 && rgb.b<1) rgb.b = rampBot(rgb.b, 1/(1+f/1));
+		//dynamic gamma
+		//if (rgb.r>0 && rgb.r<1) rgb.r = rampBot(rgb.r, 1/(1+f/1));
+		//if (rgb.g>0 && rgb.g<1) rgb.g = rampBot(rgb.g, 1/(1+f/1));
+		//if (rgb.b>0 && rgb.b<1) rgb.b = rampBot(rgb.b, 1/(1+f/1));
 
-			//vec3 percp = vec3(0.2126, 0.7152, 0.0722);
-			//dynamic contrast
-			//if (rgb.r>0 && rgb.r<1) rgb.r = rampTop(rgb.r, f);
-		    //if (rgb.g>0 && rgb.g<1) rgb.g = rampTop(rgb.g, f);
-			//if (rgb.b>0 && rgb.b<1) rgb.b = rampTop(rgb.b, f);
+		//dynamic contrast
+		//if (rgb.r>0 && rgb.r<1) rgb.r = rampTop(rgb.r, f);
+	    //if (rgb.g>0 && rgb.g<1) rgb.g = rampTop(rgb.g, f);
+		//if (rgb.b>0 && rgb.b<1) rgb.b = rampTop(rgb.b, f);
 
-			//dynamic contrast+gamma averaged
-			//rgb = rampMid(rgb,f);
+		//dynamic contrast+gamma averaged
+		//rgb = rampMid(rgb,f);
 
-			//dynamic fine tuned contrast vs gamma
-			rgb = mix(rampTop(rgb,f), rampBot(rgb,e), 0.25);
-
-			rgb = clamp(rgb, 0, 1);
-
-			//if (rgb.r<1) rgb.r = mix(rgb.r, rampTop(rgb.r, f), rampBot(1-l, slope) );
-			//if (rgb.g<1) rgb.g = mix(rgb.g, rampTop(rgb.g, f), rampBot(1-l, slope) );
-			//if (rgb.b<1) rgb.b = mix(rgb.b, rampTop(rgb.b, f), rampBot(1-l, slope) );
-
-			//if (rgb.r<1) rgb.r = mix(rgb.r, rgb.r*f, rampBot(l, slope) );
-			//if (rgb.g<1) rgb.g = mix(rgb.g, rgb.g*f, rampBot(l, slope) );
-			//if (rgb.b<1) rgb.b = mix(rgb.b, rgb.b*f, rampBot(l, slope) );
-		//}
-		/*else //limit
-		{
-			float lmax = rampBot(ExposureExpansionIgnoreLevel,ExposureExpansionSlope);
-			float pmax = (1/lmax) * ExposureExpansion;
-			float rmax = rampTop(color.r, pmax);
-			float gmax = rampTop(color.g, pmax);
-			float bmax = rampTop(color.b, pmax);
-			if (color.r<1) color.r = rmax;
-			if (color.g<1) color.g = gmax;
-			if (color.b<1) color.b = bmax;
-		}*/
+		//dynamic fine tuned contrast+gamma mixed
+		rgb = mix(rampTop(rgb,f), rampBot(rgb,lavg), 0.25);
 
 	}
 
+	rgb = clamp(rgb, 0, 1);
 	return rgb;
 }
 
@@ -2027,7 +2237,6 @@ vec4 dimExposureTest(vec4 color, sampler2D tex, vec2 texcoord)
 	vec4 c = textureLod(tex, samplePoint, 1+floor(log2(max(texsize.x, texsize.y))) ); //DONT WORK?
 
 	//float luminance = (c.r+c.g+c.b)/3; //overall texture luminance?
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 	//float luminance = dot(color.rgb, percp); //effect like dim???
 	float luminance =  dot(c.rgb, percp);
 	if (luminance > ExposureSuppressionThreshold) //lower threshold
@@ -2058,7 +2267,7 @@ vec4 fakeHDR(vec4 color)
 
 vec3 GammaCorrect(vec3 rgb, float gcor)
 {
-	//float p = 1/GammaCorrection;
+	//float p = 1/Gamma;
 	rgb.r = rgb.r<=0?0:pow(rgb.r, gcor);
 	rgb.g = rgb.g<=0?0:pow(rgb.g, gcor);
 	rgb.b = rgb.b<=0?0:pow(rgb.b, gcor);
@@ -2075,7 +2284,6 @@ vec3 GammaCorrect(vec3 rgb, float gcor)
 
 vec3 SaturateLows1(vec3 color)
 {
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 	float luma = dot(color.rgb, percp);
 	vec3 hsl = rgb2hsl(color);
 	if (hsl.y == 0) return color;
@@ -2089,7 +2297,6 @@ vec3 SaturateLows1(vec3 color)
 vec3 SaturateLows2(vec3 rgb, float baseSat, float lowSat, float lumaRatio) //by hsl
 {
 	//lumaRatio=0;
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 	vec3 hsl = rgb2hsl(rgb);
 	if (hsl.y == 0) return rgb;
 	float luma = mix(dot(rgb, percp), hsl.z, lumaRatio);
@@ -2106,7 +2313,6 @@ vec3 SaturateLows2(vec3 rgb, float baseSat, float lowSat, float lumaRatio) //by 
 
 vec3 BoostLows(vec3 rgb, float coAmt, float lumaRatio, float slope)
 {
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 	const vec3 linp = vec3(0.3333);
 	float luma = dot(rgb, percp);
 	float lin = dot(rgb, linp);
@@ -2146,14 +2352,12 @@ vec3 BoostLows(vec3 rgb, float coAmt, float lumaRatio, float slope)
 
 vec3 BrightenLows(vec3 rgb, float amount, float lumaRatio, float slope)
 {
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 	const vec3 linp = vec3(0.3333);
 	float luma = dot(rgb, percp);
 	float lin = dot(rgb, linp);
 	float l = mix(lin, luma, lumaRatio);
 
 	l = clamp(l, 0, 1);
-
 	float mixSlope = rampBot(1-l, slope);
 	rgb.r = mix(rgb.r, rgb.r+amount, mixSlope);
 	rgb.g = mix(rgb.g, rgb.g+amount, mixSlope);
@@ -2165,8 +2369,6 @@ vec3 BrightenLows(vec3 rgb, float amount, float lumaRatio, float slope)
 
 vec3 SaturateLows(vec3 rgb, float baseSat, float lowSat, float lumaRatio) //by hsv
 {
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
-	//const vec3 percp = vec3(0.8, 0.3, 0.9);
 	const vec3 linp = vec3(0.5774);
 	float luma = dot(rgb, percp);
 
@@ -2231,7 +2433,6 @@ vec3 UniformColor(vec3 rgb)
 	float m = dot(rgb,vec3(0.7,0,0.7));
 	float y = dot(rgb,vec3(0.7,0.7,0));
 
-	const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 	float luma = dot(rgb,percp);
 
 	//float luma = r*0.2 + g*0.7 + b*0.07;
@@ -2338,7 +2539,6 @@ vec3 Oklabify(vec3 rgb, float amount) //do with corr vector
 	//c.rgb = mix(c.rgb,oklab2rgb(oklch2oklab(lsh)),0.5);
 	//return oklab2rgb(oklch2oklab(lchfix));
 	//hsl = vec3(hsl.x+0.085,clamp(hsl.y*(0-hsl.z*0+1), 0, 1),hsl.z);
-	//const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 	//float luma = dot(color.rgb, percp);
 
 	hsl.x += 0.0805555;
@@ -2349,7 +2549,6 @@ vec3 Oklabify(vec3 rgb, float amount) //do with corr vector
 	//float s = 0.2 + 0.8*(luma<0.25? (0.25-luma)/0.25 : 0);
 	//hsl.y = hsl.y*(0-hsl.z*0+1);
 	//hsl.y = hsl.y>0?clamp(s, 0, 1):0;
-	//const vec3 percp = vec3(0.2125, 0.7154, 0.0721);
 	//hsl.z = dot(color.rgb, percp);
 	vec3 okrgb = okhsl_to_srgb(hsl);
 	return mix(rgb, okrgb, amount);
@@ -2567,17 +2766,430 @@ vec3 FixSat(vec3 rgb)
 	return rgb;
 }
 
-
-vec4 window_shader() //picom function
+float HueDiff(float hue1, float hue2)
 {
-	vec4 c = vec4(0.4, 0.4, 0.6, 1.0);
+	return min(abs(hue1-hue2), abs(hue2+(1-hue1)));
+}
 
-	if (UseEffects <= 0) //if disabled then only saturate and return
+float HueDiffDeg(float hue1, float hue2)
+{
+	return min(abs(hue1-hue2), abs(hue2+(360-hue1)));
+}
+
+
+vec3 FixSat2(vec3 rgb)
+{
+	vec3 hsl = rgb2hsl(rgb);
+	//float sat = GetSat3(rgb);
+	float sat = hsl.y;
+	//float luma = dot(rgb, percp);
+	//float luma = dot(rgb, vec3(0.333));
+	//float luma = (rgb.r+rgb.g+rgb.b)/3;
+	float luma = hsl.z;
+	float l = abs(0.5-luma)*2; //zero at 0.5 (mid), one at 1 and 0 (hi lo)
+	float satlfac = rampBot(l,1);
+	//float sustlfac = rampBot(l,16); //for GetSat
+	float sustlfac = rampBot(l,0.5); //for hsl.y
+	//float huesatfix = (clamp(rgb.r+rgb.g+rgb.b,1,2)-1)*(1-Saturation);
+	float huefix = rampTop(abs((-60+mod(hsl.x*360+60,120)))/60,0.25);
+	//float hue = hsl.x*360;
+	//float prime = round(hue/120)*120;
+	//float huefix = rampTop(HueDiffDeg(hue,prime)/60,0.25);
+	float huesatfix = (1+huefix) *min(Saturation,1-Saturation);
+	//float basesat = mix(Saturation*huesatfix, 1, satlfac);
+	//float basesat = mix(Saturation*huesatfix, 2-Saturation*huesatfix, satlfac);
+	//float basesat = mix(Saturation*huesatfix, 2, rampBot(l,2));
+	//float basesat = huesatfix * mix(Saturation, 2, rampBot(l,2));
+	//float basesat = huefix * mix(Saturation, 2, rampBot(l,2));
+	//float basesat = mix(Saturation+(1-Saturation)*huefix, 2, rampBot(l,2));
+	//float demag = 0.5*rampTop(dot(normalize(rgb),vec3(0.71,0,0.71)),0.125);
+	float y = rampTop(1-clamp(0,60,HueDiffDeg(hsl.x*360,60))/60,0.125); //desated yellow is too dirty?
+	float c = rampTop(1-clamp(0,60,HueDiffDeg(hsl.x*360,180))/60,0.125);
+	float m = rampTop(1-clamp(0,60,HueDiffDeg(hsl.x*360,300))/60,0.125); //magenta perceives too bright?
+	#define FakeHdrExtraSatY +0.5
+	#define FakeHdrExtraSatC +0.33
+	#define FakeHdrExtraSatM -0.33
+	float basesat = (1 +FakeHdrExtraSatY*y +FakeHdrExtraSatC*c +FakeHdrExtraSatM*m) *mix(Saturation, 1.5+(1-Saturation), rampTop(l,0.5));//* rampBot(hsl.y,0.0125);//*rampBot(1-luma,0.25));
+	// float basesat = (1+0.5*huefix) *mix(Saturation, 2+(1-Saturation) , rampBot(l,2));
+	//float sust = mix(0.5, 0.8, sustlfac);
+	//float sust = mix(0.5, 1, rampBot(l,2.0));
+	float sust = mix(0.5, 0.999, rampTop(l,0.125));// *rampBot(1-l,0.125) *rampBot(hsl.y,0.125));
+	rgb = Saturate(rgb, basesat+basesat*(1/(rampBot(sat,sust)+0.00001)-1));// * (1-huefix*0.1);
+	//rgb = Saturate(rgb, mix(basesat+basesat*(1/(rampBot(sat,0.5)+0.00001)-1), basesat+basesat*10*(1/(rampBot(sat,0.1)+0.00001)-1), satlfac) );
+
+	// rgb = Saturate(rgb, basesat*mix(
+	// 	rampBot(sat,0.5),
+	// 	rampBot(sat,0.25),
+	// 	rampBot(l,16) )
+	// *(1+(1/(sat+0.00001)-1)) );
+
+	//rgb = Saturate(rgb, 1+16*rampBot(1-sat,1)*rampBot(l,2));
+	//sat = rgb2hsl(rgb).y;
+
+	// rgb = Saturate(rgb, basesat*mix(
+	// 	rampBot(sat,0.5),
+	// 	rampBot(sat,0.25),
+	// 	rampBot(l,2) )
+	// *(1+(1/(sat+0.00001)-1)) );
+
+	// rgb = Saturate(rgb, mix(
+	// 	basesat*(1+(1/(sat+0.00001)-1)*rampBot(sat,1)),
+	// 	basesat*(1+(1/(sat+0.00001)-1)*rampBot(sat,0.5)),
+	// 	rampBot(l,1) ) );
+	return rgb;
+}
+
+vec3 CompressHueCMY(vec3 rgb, float amount)
+{
+	vec3 hsl = rgb2hsl(rgb);
+	float hueoff = (-60+mod(hsl.x*360+60,120))/60;
+	//rgb = hsl2rgb(vec3(sign(hueoff)*rampBot(abs(hueoff),amount),hsl.y,hsl.z));
+	float huediff = min(abs(hsl.x-0.5), abs(0.5+(1-hsl.x)));
+	float hue = hsl.x*360;
+	float prime = round(hue/120)*120;
+	hsl.x = mix(prime,hue,rampTop(HueDiffDeg(hue,prime)/60,2)) / 360;
+	hsl.x = mod(hsl.x,1);
+	if (hsl.x<0) hsl.x = hsl.x+1;
+	//if (hsl.x==360.0) hsl.x = 0;
+
+	rgb = hsl2rgb(hsl);
+	return rgb;
+}
+
+vec3 Dehaze(vec3 rgb, ColHist net, float amount)
+{
+
+	//float oldlum = (rgb.r+rgb.g+rgb.b)/3;
+	float oldlum = dot(rgb,percp);
+	rgb.r = clamp(rgb.r,0,1);
+	rgb.g = clamp(rgb.g,0,1);
+	rgb.b = clamp(rgb.b,0,1);
+
+
+	//dehaze
+	vec3 hsl = rgb2hsl(rgb);
+	//hsl.y = GetSat4(rgb);
+	vec3 avghsl = rgb2hsl(net.avg.rgb);
+	avghsl = clamp(avghsl, 0, 1);
+	//redo and check if closer to bounds
+	float huediff = min(abs(hsl.x-avghsl.x), abs(avghsl.x+(1-hsl.x)));
+	//float huediff = abs(mod((hsl.x-avghsl.x)+0.5,1)-0.5);
+	//huediff = min(huediff, 1-huediff);
+	float dev = clamp(sqrt(length(net.var.rgb))/0.5,0,1); //wrong?
+	float graymix =  rampBot(1-huediff,3) * rampBot(1-dev,0.5) * rampTop(avghsl.y,8);
+	//rgb = mix(rgb, vec3(oldlum), graymix*amount);// * rampBot(1-length(sqrt(net.var.rgb))/0.5,0.5) );
+	//rgb = Saturate(rgb,1+(1-graymix)*amount*(1-oldlum*1));
+	//rgb = rgb-hsl2rgb(vec3(avghsl.x,1,0.5))*rampTop(1-huediff,0.0733)*(hsl.y);//*amount*(1-oldlum*1);
+	// huediff = clamp(huediff*180,0,60)/60;
+	huediff = clamp(huediff*180,0,120)/120;
+	graymix =  rampBot(1-huediff,1) * rampBot(1-dev,0.25);// * rampTop(avghsl.y,10);
+	//rgb = mix(rgb, vec3(oldlum), graymix*amount);// * rampBot(1-length(sqrt(net.var.rgb))/0.5,0.5) );
+	//rgb = Saturate(rgb,1+(1-graymix)*amount*(1-oldlum*1));
+	vec3 desated = mix(rgb, vec3(oldlum), graymix*amount);
+	vec3 decoled = clamp(rgb - net.avg.rgb,0,1);//*(1-huediff)*amount;
+	// vec3 decoled = clamp(rgb - hsl2rgb(vec3(avghsl.x,1,0.5)),0,1);//*(1-huediff)*amount;
+	//rgb = mix(desated, decoled, huediff);
+	float effect = rampTop(1-huediff,1)*amount*rampTop(avghsl.y,8);
+	rgb = mix(rgb, mix(vec3(oldlum), decoled, huediff), effect);// * rampBot(1-dev,0.5));
+	//rgb = Saturate(rgb, 0.5+0.5*(1-saw(1,1)));
+	//rgb.r = rgb.r-1*huefac*rgb.r;//*dot(rgb,vec3(1,0,0));
+	//rgb.g = rgb.g-1*huefac*rgb.g;//*dot(rgb,vec3(0,1,0));
+	//rgb.b = rgb.b-1*huefac*rgb.b;//*dot(rgb,vec3(0,0,1));
+	//rgb = rgb - clamp( net.avg.rgb*(dot(net.avg.rgb,rgb)), 0.0001, length(rgb) ); //good?
+	rgb = Saturate(rgb,1+(2*amount*effect));
+	rgb = rgb * (oldlum/dot(rgb,percp));
+	rgb = clamp(rgb,0.00001,1);
+	//rgb = rgb * (oldlum/((rgb.r+rgb.g+rgb.b)/3));
+
+
+	// rgb = clamp(rgb, 0, 1);
+	return rgb;
+}
+
+
+// const mediump float BARREL_DISTORTION = 1.1;
+const mediump float BARREL_DISTORTION = 1;
+//const mediump float rescale = 1.06 - (0.25 * BARREL_DISTORTION );
+const mediump float rescale = 1/(1+0.25*BARREL_DISTORTION) ;//0.285;
+//const mediump float rescale = 1.0 - (0.25 * BARREL_DISTORTION);
+
+vec4 BarrelDist(sampler2D tex, vec2 uv, vec2 scale, float stereo, bool isInputStereoscopic, float amount)
+{
+	//scale = vec2(1,1);
+	//if (uv.x >= 0.4995 && uv.x <= 0.5005) return vec4(0,0.5,0.5,1); //blue line for test center
+	//bool isInputStereoscopic = false;
+	//float rescale = 1.0 - (0.25 * amount);
+	//vec2 scale = texSize / inputSize;
+	//vec2 tex0 = TEX0 * scale;
+	//vec2 uv = tex0 - vec2(0.5);
+	vec2 olduv = uv;
+	///Simple 2D Side-by-Side Barrel Distortion Effect
+	uv.x = mod(uv.x, 0.5) * 2; //doubles the barrel
+
+	//vec2 scale = vec2(1,1);
+	uv = uv - vec2(0.5); //set center to zero for easier calculations
+	//uv *= vec2(1,1); //scales barrels with content
+	float rsq = uv.x * uv.x + uv.y * uv.y;
+	uv = uv + (uv * (amount * rsq));
+	uv *= rescale;
+
+
+	vec4 color;
+	//vec2 scale = vec2(1,1);
+	//vec2 contentOffset = vec2(0.0,0.0);
+	float offset = 0.00; //content offset by Y axis
+	//float stereo = 0.00; //extra pupil dilation, affects depth
+	//not abs with offset!
+	//if (abs(uv.x) > 0.5*(scale.x+contentOffset.x) || abs(uv.y) > 0.5*(scale.y+contentOffset.y)) //scale mult removes tiles
+	if (uv.x < (-0.5+stereo*sign(0.5-olduv.x))*(scale.x) //*scale.x?
+	|| uv.x > (0.5+stereo*sign(0.5-olduv.x))*(scale.x)
+	|| uv.y < (-0.5+offset)*(scale.y)
+	|| uv.y > (0.5+offset)*(scale.y)) //scale mult removes tiles
+	{
+		color = vec4(0.5,0,0,1); //red back for test frame
+		// color = vec4(0,0,0,1);
+	}
+	else
+	{
+		// uv.x = mod(uv.x, 0.5) * 2;
+		//uv.x = (uv.x - 0.5);
+		// if (uv.x<0.5) uv.x /= 2;
+		//vec2 contentScale = vec2(2,1);// vec2(0.1,0.1);
+		uv = uv/scale; //scales just content
+		uv = uv + vec2(0.5); //set left corner back to zero
+		uv.y = uv.y - offset;
+		//uv /= scale;
+
+		//For already stereoscopic input (game have inbuilt SBS enabled)
+		if (isInputStereoscopic == true)
+		{
+			if (olduv.x<0.5) uv.x = uv.x/2 - stereo; else uv.x = uv.x/2 + 0.5 + stereo;
+		}
+		else
+		{
+			if (olduv.x<0.5) uv.x = uv.x - stereo; else uv.x = uv.x + stereo;
+		}
+
+		color = texture2D(tex, uv);
+	}
+
+	return color;
+}
+
+
+vec4 BarrelDist22(sampler2D tex, vec2 uv)
+{
+	vec2 center = vec2(0.5);          // (0.5, 0.5)
+	float aspectRatio = 16/9;    // = resolution.x / resolution.y
+	float strength = -1;       // 0.0 (no effect) to 1.0 (full squircle)
+
+    // Convert to centered coordinates [-1, 1]
+    uv = (uv - center) * 2.0;
+
+    // Apply aspect ratio correction
+    uv.y /= aspectRatio;
+
+    // Calculate absolute coordinates for quadrant handling
+    vec2 absUV = abs(uv);
+    float maxCoord =  max(absUV.x, absUV.y);
+
+    // Calculate squircular scaling factor
+    float scale = 1.0;
+    if (maxCoord > 0.0) {
+        // Core squircle formula for corner pinching
+        if (absUV.x >= absUV.y) {
+            scale = sqrt(1.0 - 0.5 * (absUV.y * absUV.y) / (absUV.x * absUV.x));
+        } else {
+            scale = sqrt(1.0 - 0.5 * (absUV.x * absUV.x) / (absUV.y * absUV.y));
+        }
+    }
+
+    // Apply directional scaling with strength
+    vec2 scaledUV = mix(uv * scale, uv, rampBot(1-length(uv),0.5));
+    vec2 distorted = mix(uv, scaledUV, strength);
+
+    // Restore aspect ratio
+    distorted.y *= aspectRatio;
+
+	if (abs(distorted.x)>1 || abs(distorted.y)>1) return vec4(0.5,0,0,1);
+    // Convert back to [0,1] space
+    vec2 sampleUV = distorted * 0.5 + center;
+
+    // Edge handling with overscan protection
+    // vec2 safeUV = clamp(sampleUV, 0.001, 0.999);
+    // float border = smoothstep(0.99, 0.999, length(uv));
+    // return texture2D(tex, mix(sampleUV, safeUV, border));
+    return texture2D(tex, sampleUV);
+}
+
+vec2 Remap(vec2 olduv, vec2 newuv)
+{
+	float u = olduv.x/newuv.x;
+	float v = olduv.y/newuv.y;
+	return vec2(u,v);
+}
+
+vec4 BarrelDist2(sampler2D tex, vec2 uv, vec2 scale, float stereo, bool isInputStereoscopic, float amount) //not circle?
+{
+	vec2 center = vec2(0.5);          // (0.5, 0.5)
+	float aspectRatio = 16/9;    // = resolution.x / resolution.y
+	//float strength = -3;       // 0.0 (no effect) to 1.0 (full circle)
+
+	vec2 origuv = uv;
+
+	uv.x = mod(uv.x, 0.5) * 2; //split screen & duplicate everything
+    // Convert to normalized device coordinates [-1, 1]
+    uv = (uv - center) * 2.0;
+
+    // Apply aspect ratio correction
+    uv.y *= aspectRatio;
+
+    // Calculate squircular mapping parameters
+    float x2 = uv.x * uv.x;
+    float y2 = uv.y * uv.y;
+    //float r2 = x2 + y2;
+    float r = length(uv);
+	float r2 = sqrt(x2 + y2 - x2*y2);
+
+    // Apply inverse squircular mapping
+    vec2 distorted = uv;
+    if (r2 > 1e-6) {
+        // Core inverse squircle formula
+        //float factor = sqrt(r2 - x2 * y2) / r2;
+        //distorted = uv * factor;
+        //distorted = (r2 / r) * uv;
+		float x = uv.x; float y = uv.y;
+		float xx = x*x; float yy = y*y;
+
+		distorted.x = uv.x * sqrt(1 - yy/2);
+		distorted.y = uv.y * sqrt(1 - xx/2);
+		//distorted.x = mod(distorted.x,0.5);
+
+		// distorted.x = x * sqrt(1 - y*y) / sqrt(1 - (x*x) * (y*y));
+		// distorted.y = y * sqrt(1 - x*x) / sqrt(1 - (x*x) * (y*y));
+
+		//float angfac = (dot(normalize(vec2(abs(uv.x),abs(uv.y))),normalize(vec2(1,1)))-0.707)/(1-0.707);
+		// float angfac = 1-acos(dot(normalize(vec2(abs(uv.x),abs(uv.y))),normalize(vec2(1,1))))/radians(45);
+		// angfac = rampBot(angfac,2);
+		// distorted.x = mix(x, mix(x,x / 0.707, length(uv)), angfac);
+		// distorted.y = mix(y, mix(y,y / 0.707, length(uv)), angfac);
+		// vec2 lenDist = mix(uv, uv / 0.707, rampBot(length(uv),4));
+		// distorted = mix(uv, lenDist, angfac);
+		// distorted = mix(uv, Remap(uv, vec2(0.707)), angfac);
+    }
+
+    // Interpolate between original and distorted
+    distorted = mix(uv, distorted, amount);// strength * rampBot(length(uv),2));
+	distorted = distorted / scale; //scale content
+	if (abs(distorted.x)>1 || abs(distorted.y)>1) return vec4(0.0,0,0,1);
+
+    // Convert back to texture space
+    distorted.y /= aspectRatio;
+
+    vec2 sampleUV = distorted * 0.5 + center;
+	// sampleUV.x = mod(sampleUV.x,0.5); //for stereo
+    // Handle edge cases
+    //vec2 safeUV = clamp(sampleUV, 0.001, 0.999);
+    //float border = smoothstep(0.95, 0.99, max(abs(distorted.x), abs(distorted.y)));
+    //return texture2D(tex, mix(sampleUV, safeUV, border));
+
+	//For already stereoscopic input (game have inbuilt SBS enabled)
+	// isInputStereoscopic == false;
+	if (isInputStereoscopic == true)
+	{
+		if (origuv.x<0.5) sampleUV.x = sampleUV.x/2 - stereo; else sampleUV.x = sampleUV.x/2 + 0.5 + stereo;
+	}
+	else
+	{
+		if (origuv.x<0.5) sampleUV.x = sampleUV.x - stereo; else sampleUV.x = sampleUV.x + stereo;
+	}
+
+	vec4 color = texture2D(tex,sampleUV);
+
+	float diffx = (distorted.x + uv.x/scale.x) * -0.0028 ;//0.0037 * scale.x;
+	float diffy = (distorted.y + uv.y/scale.y) * -0.0028; //-0.0025 ;
+	vec2 diff = vec2(diffx,diffy);
+	// color = vec4(texture2D(tex,clamp(sampleUV+diff,0.001,0.999)).r, color.g, texture2D(tex,clamp(sampleUV-diff,0.001,0.999)).b, color.a); //chromatic abberation suppression
+
+	return color;
+}
+
+vec4 BarrelDist3(sampler2D tex, vec2 uv)
+{
+	vec2 center = vec2(0.5);    // (0.5, 0.5) for screen center
+	float strength = 0.5; // 0.0 to 1.0 (recommend 0.7-1.0)
+
+    // Convert to centered coordinates (-0.5 to 0.5 range)
+    uv = uv - center;
+
+    // Calculate absolute values and signs
+    vec2 signUV = sign(uv);
+    vec2 absUV = abs(uv * 2.0);  // Scale to [-1,1] range
+
+    // Squircular transformation (preserves X/Y axes)
+    vec2 squircular;
+    if (absUV.x > 1e-5 && absUV.y > 1e-5) {
+        float x = absUV.x;
+        float y = absUV.y;
+        float squircleScale = 1.0 / sqrt(x*x + y*y - x*x*y*y);
+
+        // Apply strength parameter
+        squircular = vec2(x, y) * mix(1.0, squircleScale, strength);
+    } else {
+        squircular = absUV;
+    }
+
+    // Apply original signs and rescale
+    vec2 distorted = signUV * squircular * 0.5;
+    vec2 sampleUV = distorted + center;
+
+    // Smart edge handling (preserve aspect ratio)
+    // vec2 safeUV = clamp(sampleUV, center - 0.49, center + 0.49);
+    // return texture2D(tex, mix(sampleUV, safeUV, step(0.495, abs(distorted.x) + abs(distorted.y))));
+    return texture2D(tex, sampleUV);
+}
+
+
+//ENTRY FUNCTIONS AND FX STACKS
+
+vec3 StandardProcessing(vec3 rgb)
+{
+	if (Gamma!=1) rgb = GammaCorrect(rgb, 1/Gamma);
+	//rgb = Saturate(rgb, Saturation);
+	if (Contrast!=1) rgb = rgb*Contrast/100.0;
+	if (Brightness!=0.0) rgb = rgb+Brightness/100.0;
+	return rgb;
+}
+
+vec4 FXStack() //stack all effects
+{
+	vec4 c;// = vec4(1.0, 0.25, 0.25, 1.0); //red screen if smth failed
+
+
+	if (UseEffects == 0) //if disabled then only saturate and return
 	{
 		c = GetColor(tex, texcoord);
+		//if (Saturation != 1 ) c.rgb = Saturate(c.rgb, Saturation);
+		//c.rgb = StandardProcessing(c.rgb);
+		return c;
+	}
 
-		if (Saturation != 1 ) c.rgb = Saturate(c.rgb, Saturation);
 
+	if (UseEffects == -1)
+	{
+		vec2 texSize = textureSize(tex, 0);
+		vec2 texelSize = 1.0 / texSize;
+		vec2 uv = texcoord * texelSize;
+		// c = BarrelDist(tex, uv, vec2(2,1), 0, true, BARREL_DISTORTION);
+		c = BarrelDist2(tex,uv, vec2(1.0,0.5), 0, false, -1); //zoomed
+		//c = BarrelDist2(tex,uv, vec2(2.0,1.0), 0, true, -1); //cropped
+		colHist = GetColor8x4Optimized(tex);
+		c.rgb = Dehaze(c.rgb, colHist, AutoBalance);
+		c.rgb = ExpandExposure(c.rgb, colHist, ExposureExpansion, ExposureExpansionIgnoreLevel);
+		c.rgb = rampBot(c.rgb, 2);
+		c.rgb = FixSat2(c.rgb);
+		c.rgb = CompressHueCMY(c.rgb, 2);
+		//if (Saturation != 1 ) c.rgb = Saturate(c.rgb, Saturation);
 		return c;
 	}
 
@@ -2586,43 +3198,111 @@ vec4 window_shader() //picom function
 	{
 		vec2 texelSize = 1.0 / textureSize(tex, 0);
 		vec2 uv = texcoord * texelSize;
-
-		c.rgb = DualSharpeningOptimized(tex, uv, texelSize, 3, Roughness, 1, Sharpness);
-
-		//c = 0.5*(GetSharpenedColor(tex, uv, texelSize, Sharpness*2)+SharpenEdges(tex, uv, texelSize, Roughness*2, 3)); //simple 50/50 blend
-
-		//c = mix(GetSharpenedColor(tex, uv, texelSize, Sharpness*2), SharpenEdges(tex, uv, texelSize, Roughness*2, 3), dot(c.rgb, vec3(0.2126, 0.7152, 0.0722))); //special mix
+		c = DualSharpeningOptimized(tex, uv, texelSize, 3, Roughness, 1, Sharpness);
 
 		//c = Get2xSai(tex, uv, texelSize*2);
-
-		//float roughmix = 0.5;
-		//vec4 sharp = roughmix<1.0? GetSharpenedColor(tex, uv, texelSize, Sharpness + Sharpness*roughmix*2) : c;
-		//vec4 rough = roughmix>0.0? SharpenEdges(tex, uv, texelSize, Roughness+Roughness*(1-roughmix)*2, 3) : c;
-		//c = mix (sharp, rough, roughmix);
 	}
 	else c = GetColor(tex, texcoord);
 
+	//heavy, calculate only if needed!
+	if (Lum!=0 || AutoBalance!=0) colHist = GetColor8x4Optimized(tex);
 
-	if (Lum == 1) //dynamic exposure
+	if (AutoBalance != 0) c.rgb = Dehaze(c.rgb, colHist, AutoBalance);
+
+	if (Lum == 1) //dynamic exposure expansion
     {
-		c.rgb = ExpandExposure(c.rgb, tex, texcoord, ExposureExpansion, ExposureExpansionIgnoreLevel); //brighten scene based on average luminance
-		if (ExpandBlacks > 0) c.rgb = BoostLows(c.rgb, ExpandBlacks+1, 1, ExpandBlacksSlope); //boost shadows, fixed multiplier
+		c.rgb = ExpandExposure(c.rgb, colHist, ExposureExpansion, ExposureExpansionIgnoreLevel); //brighten scene based on average luminance
 		//if (ExpandBlacks > 0) c.rgb = BrightenLows(c.rgb, ExpandBlacks, 1, 2);
 		//c.rgb = BrightenLows(c.rgb, 0.2, 1, 2);
+		//c.rgb = rampBot(c.rgb, 0.8);
 	}
 	else if (Lum == 2) c.rgb = rampBot(c.rgb, 0.454545); //static compensation with gamma
 
 
+	if (ExpandBlacks > 0) c.rgb = BoostLows(c.rgb, ExpandBlacks+1, 1, ExpandBlacksSlope); //boost shadows, fixed multiplier
+
+
+	if (UseEffects == -2) //for testing
+	{
+		c.rgb = FixSat2(c.rgb);
+
+		if (BlackLightness>0) c.rgb = BrightenLows(c.rgb, BlackLightness, 1, 2);
+
+		return c;
+	}
+
+	//c.rgb = rampTop(c.rgb, 2.5);
+	//c.rgb = rampBot(c.rgb, 0.66);
+	//c.rgb = rampMid(c.rgb,1.2);
+
 	if (Dim > 0 ) c.rgb = DimWhites(c.rgb, Dim, DimThreshold, DimSlope, DimCompensation, 0); //suppress whites
 
-	if (FakeHdr != 0) c.rgb = FixSat(c.rgb); else if (Saturation != 1 ) c.rgb = Saturate(c.rgb, Saturation);
+	if (FakeHdr == 1) c.rgb = FixSat(c.rgb); else if (FakeHdr == 2) c.rgb = FixSat2(c.rgb); else if (Saturation != 1 ) c.rgb = Saturate(c.rgb, Saturation);
+	c.rgb = CompressHueCMY(c.rgb, 2);
+	if (Lum==1) c.rgb = GammaCorrect(c.rgb, 1/0.5);
 
 	//if (true) c.rgb = SaturateLows(c.rgb,Saturation,64,0);
 
 	//c.rgb = Oklabify(c.rgb, 1);
 
-	//if (GammaCorrection != 1) c.rgb = GammaCorrect(c.rgb, 1/GammaCorrection); //if hardware not supported
 
+	//if (Gamma != 1) c.rgb = GammaCorrect(c.rgb, 1/Gamma); //if hardware not supported
+
+
+	//c.rgb = StandardProcessing(c.rgb);
+	if (BlackLightness>0) c.rgb = BrightenLows(c.rgb, BlackLightness, 1, 2); //boost blacks/shadows, additive
+
+
+	//black background replacer (useful for pure black themes?)
+	//if (c.rgb == vec3(0)) c.rgb = vec3(0.2);
+
+	if (Debug > 0) c.rgb = debug(c.rgb, debugValue);
+	//---
+
+	//REPLACE=fullscreen.part2.glsl
+
+	//c.a = 1; //disable transparency
+	return c;
+}
+
+
+vec4 FXStack_Basic()
+{
+	vec4 c;// = vec4(1.0, 0.25, 0.25, 1.0); //red screen if smth failed
+
+
+	if (UseEffects == 0) //if disabled then only saturate and return
+	{
+		c = GetColor(tex, texcoord);
+		//if (Saturation != 1 ) c.rgb = Saturate(c.rgb, Saturation);
+		//c.rgb = StandardProcessing(c.rgb);
+		return c;
+	}
+
+
+	if (Sharpness != 0 || Roughness != 0) //negative means blur
+	{
+		vec2 texelSize = 1.0 / textureSize(tex, 0);
+		vec2 uv = texcoord * texelSize;
+		//c = DualSharpeningOptimized(tex, uv, texelSize, 3, Roughness, 1, Sharpness);
+		c = GetSharpenedColor(tex, uv, texelSize, Sharpness);
+
+		//c = Get2xSai(tex, uv, texelSize*2);
+	}
+	else c = GetColor(tex, texcoord);
+
+	//c.rgb = rampBot(c.rgb, 0.454545); //static compensation with gamma
+
+	//c.rgb = rampTop(c.rgb, 2.5);
+	//c.rgb = rampBot(c.rgb, 0.66);
+	//c.rgb = rampMid(c.rgb,1.2);
+
+	//if (Gamma != 1) c.rgb = GammaCorrect(c.rgb, 1/Gamma); //if hardware not supported
+
+
+	//c.rgb = StandardProcessing(c.rgb);
+	if (Saturation != 1 ) c.rgb = Saturate(c.rgb, Saturation);
+	//c.rgb = GammaCorrect(c.rgb, 1/1.4);
 
 	if (BlackLightness>0) c.rgb = BrightenLows(c.rgb, BlackLightness, 1, 2); //boost blacks/shadows, additive
 
@@ -2636,6 +3316,14 @@ vec4 window_shader() //picom function
 	//REPLACE=fullscreen.part2.glsl
 
 	//c.a = 1; //disable transparency
-	//return default_post_processing(c); //picom default - if needed
+	//return vec4(0.5,1,1,0.5);
 	return c;
+}
+
+
+#define CURRENT_FXSTACK FXStack_Basic
+
+vec4 window_shader() //picom specific entry function
+{
+	return default_post_processing(CURRENT_FXSTACK());
 }

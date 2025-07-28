@@ -40,8 +40,8 @@ then
   fi
 fi
 
-"$writevar" "$conf" "$var" "$val" &>1
-"$notify" "$var" "$val" &>1
+"$writevar" "$conf" "$var" "$val" >&1
+"$notify" "$var" "$val" >&1
 
 echo "$val"
 
