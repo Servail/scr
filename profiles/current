@@ -1,12 +1,12 @@
 gamma=1.40
 brightness=0
-contrast=69
+contrast=84
 saturation=.65
 sharpness=1.00
 roughness=1.00
-dim=0
+dim=.25
 lum=1
-dimslope=2.0
+dimslope=1.0
 fakehdr=2
 
 expand-blacks=0
@@ -20,7 +20,7 @@ exposure-expansion-threshold=1
 exposure-expansion-slope=0.5
 exposure-expansion-ignore-level=0.001
 
-black-lightness=.03
+black-lightness=.05
 
 r=1
 g=1
@@ -38,5 +38,5 @@ rgamma=1.4
 ggamma=1.4
 bgamma=1.4
 notification-id=167
-useeffects=1
-autobalance=1
+useeffects=0
+autobalance=.9

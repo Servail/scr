@@ -100,18 +100,24 @@ cfgredf AutoBalance autobalance
 
 fullscreenshader=/dev/shm/fullscreen_shader.glsl
 windowshader=/dev/shm/window_shader.glsl
+maximizedshader=/dev/shm/maximized_shader.glsl
 
 cp -f "$tempshader" "$fullscreenshader"
 cp -f "$tempshader" "$windowshader"
+cp -f "$tempshader" "$maximizedshader"
 
-redefine CURRENT_FXSTACK FXStack "$fullscreenshader"
-redefine CURRENT_FXSTACK FXStack_Basic "$windowshader"
+redefine CURRENT_FXSTACK FXStack_Fullscreen "$fullscreenshader"
+redefine CURRENT_FXSTACK FXStack_Windowed "$windowshader"
+redefine CURRENT_FXSTACK FXStack_Maximized "$maximizedshader"
 
-picom --backend glx --no-use-damage \
+picom --backend glx --no-vsync --no-use-damage \
 	--window-shader-fg $windowshader \
-	--window-shader-fg-rule "$fullscreenshader":'_NET_WM_STATE@[*] *?= "MAXIMIZED"
-	|| _NET_WM_STATE@[*] *?= "FULLSCREEN"' \
+	--window-shader-fg-rule "$maximizedshader":'_NET_WM_STATE@[*] *?= "MAXIMIZED"' \
+	--window-shader-fg-rule "$fullscreenshader":'_NET_WM_STATE@[*] *?= "FULLSCREEN"'  \
 	& disown
+	#"$fullscreenshader":'_NET_WM_STATE@[*] *?= "MAXIMIZED"
+	#|| _NET_WM_STATE@[*] *?= "FULLSCREEN"' \
+	#& disown
 
 #_NET_WM_STATE rule for fullscreen detection not applied immediately after reload, the workaround is to remaximize or refocus the window after picom finishes loading TODO: FIX THIS, try by size and coords
 sleep 0.5

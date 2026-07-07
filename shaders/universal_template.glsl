@@ -1,4 +1,4 @@
-#version 330
+ #version 330
 
 //precision highp float;
 //precision highp int;
@@ -518,8 +518,9 @@ vec3 Saturate(vec3 rgb, float saturation)
 	//0.2989 0.5870 0.1140 NTSC
 	//0.2126 0.7152 0.0722 luminance signal EY
 	//0.2627 0.6780 0.0593 UHDTV
+	// vec3 a = rgb2hsl(rgb);
 	vec3 intensity = vec3(dot(rgb, percp));
-	//vec3 intensity = vec3((color.r + color.g + color.b) / 3); //brightness based
+	//vec3 intensity = vec3((rgb.r + rgb.g + rgb.b) / 3); //brightness based
     rgb = mix(intensity, rgb, saturation);
 	rgb = clamp(rgb, 0, 1);
 	return rgb;
@@ -1929,6 +1930,38 @@ float getLuma8x4Optimized(sampler2D tex) //average luma of 32 uniformly distribu
 	return l / 32; //luminance normalization
 }
 
+float GetSat(vec3 rgb) //from HSL? (or HLS, or HSI?)
+{
+	return 1-(3/(rgb.r+rgb.g+rgb.b))*min(rgb.r, min(rgb.g, rgb.b));
+}
+
+
+float GetSat2(vec3 rgb) //from HSV (generic?)
+{
+	float v = max(rgb.r, max(rgb.g, rgb.b));
+	float s = (v - min(rgb.r, min(rgb.g, rgb.b)))/v;
+	return s;
+}
+
+
+float GetSat3(vec3 rgb) //just chroma
+{
+	return max(rgb.r, max(rgb.g, rgb.b)) - min(rgb.r, min(rgb.g, rgb.b));
+}
+
+
+float GetSat4(vec3 rgb) //just chroma
+{
+	float mean = (rgb.r+rgb.g+rgb.b) /3.0;
+	vec3 diff = rgb-vec3(mean);
+	float variance = dot(diff,diff/3.0);
+	float stddev = sqrt(variance);
+	const float maxstddev = sqrt(2.0/3.0);
+
+	return stddev/maxstddev;
+}
+
+
 
 struct ColHist
 {
@@ -1936,6 +1969,7 @@ struct ColHist
 	vec4 var;
 	vec4 min;
 	vec4 max;
+	vec3 scol;
 } colHist;
 
 vec4 accdev(vec4 acc, vec4 s)
@@ -1962,8 +1996,13 @@ vec4 setmax(vec4 cmax, vec4 s)
 	return cmax;
 }
 
+vec4 accscol(vec4 s)
+{
+	return s*GetSat4(s.rgb);
+}
+
 //also needs min/maxluma? avgmax? avgmin? (last nonzero)
-ColHist GetColor8x4Optimized(sampler2D tex) //net color of 32 uniformly distributed points for 16x9 displays
+ColHist GetColor8x4Optimized(sampler2D tex) //net color of 32 uniformly distributed points for 16x9 displays (ignoring pure blacks)
 {
 
 	const vec2 c = vec2(0.5, 0.5);
@@ -2011,81 +2050,93 @@ ColHist GetColor8x4Optimized(sampler2D tex) //net color of 32 uniformly distribu
 	vec4 dev = vec4(0); //deviation accumulator
 	vec4 min = vec4(1); //minimum
 	vec4 max = vec4(0); //maximum
+	vec4 scol = vec4(0,0,0,1); //color accumulator, ignore grays
+	float w = 0.0;
 
 	s = Tex2D(tex, c+p11);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c+p12);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c+p13);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c+p14);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c+p15);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c+p16);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c+p17);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c+p18);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 
 	s = Tex2D(tex, c+p21);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c+p22);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c+p23);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c+p24);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c+p25);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c+p26);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c+p27);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c+p28);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 
 	s = Tex2D(tex, c-p21);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c-p22);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c-p23);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c-p24);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c-p25);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c-p26);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c-p27);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c-p28);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 
 	s = Tex2D(tex, c-p11);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c-p12);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c-p13);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c-p14);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c-p15);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c-p16);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c-p17);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
 	s = Tex2D(tex, c-p18);   col += s;
-	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s);
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
+
+
+	//extra central point
+	s = Tex2D(tex, c);   col += s;
+	dev = accdev(dev, s); min = setmin(min, s); max = setmax(max, s); scol += accscol(s); w+=clamp(ceil(dot(s.rgb,s.rgb)),0,1);
+
+	w = clamp(w, 1.0f, 32.0f);
 
 	vec4 var;
-	var.r = (dev.r - col.r*col.r / 32) / (32 - 0);
-	var.g = (dev.g - col.g*col.g / 32) / (32 - 0);
-	var.b = (dev.b - col.b*col.b / 32) / (32 - 0);
+	var.r = (dev.r - col.r*col.r / w) / (w - 0.0f);
+	var.g = (dev.g - col.g*col.g / w) / (w - 0.0f);
+	var.b = (dev.b - col.b*col.b / w) / (w - 0.0f);
 
-	return ColHist(col / 32, var, min, max);
+	vec4 avg = col / w;
+	//avg.a = 1.0f; //todo: calc lightness here?
+
+	return ColHist(avg, var, min, max, scol.rgb/w);// /scol.a);
 	//return col / 32; //normalization
 }
 
@@ -2219,10 +2270,18 @@ vec3 ExpandExposure(vec3 rgb, ColHist net, float exposureExpansion, float ignore
 		//dynamic fine tuned contrast+gamma mixed
 		rgb = mix(rampTop(rgb,f), rampBot(rgb,lavg), 0.25);
 
+		//simple
+		// rgb = rampTop(rgb,f);
+
 	}
 
 	rgb = clamp(rgb, 0, 1);
 	return rgb;
+}
+
+vec3 ExpandExposurePostCompensate(vec3 rgb, float amount)
+{
+	return mix(rampTop(rgb,amount), rampBot(rgb,1/amount), 0.75);
 }
 
 
@@ -2569,38 +2628,6 @@ vec3 debug(vec3 rgb, float debugValue)
 }
 
 
-float GetSat(vec3 rgb) //from HSL? (or HLS, or HSI?)
-{
-	return 1-(3/(rgb.r+rgb.g+rgb.b))*min(rgb.r, min(rgb.g, rgb.b));
-}
-
-
-float GetSat2(vec3 rgb) //from HSV (generic?)
-{
-	float v = max(rgb.r, max(rgb.g, rgb.b));
-	float s = (v - min(rgb.r, min(rgb.g, rgb.b)))/v;
-	return s;
-}
-
-
-float GetSat3(vec3 rgb) //just chroma
-{
-	return max(rgb.r, max(rgb.g, rgb.b)) - min(rgb.r, min(rgb.g, rgb.b));
-}
-
-
-float GetSat4(vec3 rgb) //just chroma
-{
-	float mean = (rgb.r+rgb.g+rgb.b) /3.0;
-	vec3 diff = rgb-vec3(mean);
-	float variance = dot(diff,diff/3.0);
-	float stddev = sqrt(variance);
-	const float maxstddev = sqrt(2.0/3.0);
-
-	return stddev/maxstddev;
-}
-
-
 vec3 FixSat(vec3 rgb)
 {
 	//ignore white, crop above
@@ -2768,12 +2795,19 @@ vec3 FixSat(vec3 rgb)
 
 float HueDiff(float hue1, float hue2)
 {
-	return min(abs(hue1-hue2), abs(hue2+(1-hue1)));
+	//return min(abs(hue1-hue2), abs(hue2+(1-hue1))); //bad at 0
+	float huediff = abs(mod((hue1-hue2)+0.5,1)-0.5);
+	huediff = min(huediff, 1-huediff);
+	return huediff;
 }
 
 float HueDiffDeg(float hue1, float hue2)
 {
-	return min(abs(hue1-hue2), abs(hue2+(360-hue1)));
+	//return min(abs(hue1-hue2), abs(hue2+(360-hue1)));
+
+	float huediff = abs(mod((hue1-hue2)+180,360)-180);
+	huediff = min(huediff, 360-huediff);
+	return huediff;
 }
 
 
@@ -2815,6 +2849,10 @@ vec3 FixSat2(vec3 rgb)
 	//float sust = mix(0.5, 1, rampBot(l,2.0));
 	float sust = mix(0.5, 0.999, rampTop(l,0.125));// *rampBot(1-l,0.125) *rampBot(hsl.y,0.125));
 	rgb = Saturate(rgb, basesat+basesat*(1/(rampBot(sat,sust)+0.00001)-1));// * (1-huefix*0.1);
+	//float gray = (rgb.r+rgb.g+rgb.b)/3;
+	//float gray = luma;
+	//float gray = dot(rgb,percp);
+	//rgb = mix(vec3(gray), rgb, basesat+basesat*(1/(rampBot(sat,sust)+0.00001)-1));// * (1-huefix*0.1);
 	//rgb = Saturate(rgb, mix(basesat+basesat*(1/(rampBot(sat,0.5)+0.00001)-1), basesat+basesat*10*(1/(rampBot(sat,0.1)+0.00001)-1), satlfac) );
 
 	// rgb = Saturate(rgb, basesat*mix(
@@ -2839,7 +2877,7 @@ vec3 FixSat2(vec3 rgb)
 	return rgb;
 }
 
-vec3 CompressHueCMY(vec3 rgb, float amount)
+vec3 CompressHueCMY(vec3 rgb, float slope)
 {
 	vec3 hsl = rgb2hsl(rgb);
 	float hueoff = (-60+mod(hsl.x*360+60,120))/60;
@@ -2847,7 +2885,11 @@ vec3 CompressHueCMY(vec3 rgb, float amount)
 	float huediff = min(abs(hsl.x-0.5), abs(0.5+(1-hsl.x)));
 	float hue = hsl.x*360;
 	float prime = round(hue/120)*120;
-	hsl.x = mix(prime,hue,rampTop(HueDiffDeg(hue,prime)/60,2)) / 360;
+	//slope = 0.333;
+	hsl.x = mix(prime,hue,rampTop(HueDiffDeg(hue,prime)/60,slope)) / 360;
+	//slope = 0.125;
+	//slope = 1/slope;
+	//hsl.x = mix(prime,hue,1-rampTop(1-HueDiffDeg(hue,prime)/60,slope)) / 360;
 	hsl.x = mod(hsl.x,1);
 	if (hsl.x<0) hsl.x = hsl.x+1;
 	//if (hsl.x==360.0) hsl.x = 0;
@@ -2872,9 +2914,9 @@ vec3 Dehaze(vec3 rgb, ColHist net, float amount)
 	vec3 avghsl = rgb2hsl(net.avg.rgb);
 	avghsl = clamp(avghsl, 0, 1);
 	//redo and check if closer to bounds
-	float huediff = min(abs(hsl.x-avghsl.x), abs(avghsl.x+(1-hsl.x)));
-	//float huediff = abs(mod((hsl.x-avghsl.x)+0.5,1)-0.5);
-	//huediff = min(huediff, 1-huediff);
+	//float huediff = min(abs(hsl.x-avghsl.x), abs(avghsl.x+(1-hsl.x)));
+	float huediff = abs(mod((hsl.x-avghsl.x)+0.5,1)-0.5);
+	huediff = min(huediff, 1-huediff);
 	float dev = clamp(sqrt(length(net.var.rgb))/0.5,0,1); //wrong?
 	float graymix =  rampBot(1-huediff,3) * rampBot(1-dev,0.5) * rampTop(avghsl.y,8);
 	//rgb = mix(rgb, vec3(oldlum), graymix*amount);// * rampBot(1-length(sqrt(net.var.rgb))/0.5,0.5) );
@@ -2885,11 +2927,62 @@ vec3 Dehaze(vec3 rgb, ColHist net, float amount)
 	graymix =  rampBot(1-huediff,1) * rampBot(1-dev,0.25);// * rampTop(avghsl.y,10);
 	//rgb = mix(rgb, vec3(oldlum), graymix*amount);// * rampBot(1-length(sqrt(net.var.rgb))/0.5,0.5) );
 	//rgb = Saturate(rgb,1+(1-graymix)*amount*(1-oldlum*1));
-	vec3 desated = mix(rgb, vec3(oldlum), graymix*amount);
+	vec3 desated = mix(rgb, vec3(oldlum), rampBot(graymix*amount,2));
 	vec3 decoled = clamp(rgb - net.avg.rgb,0,1);//*(1-huediff)*amount;
 	// vec3 decoled = clamp(rgb - hsl2rgb(vec3(avghsl.x,1,0.5)),0,1);//*(1-huediff)*amount;
 	//rgb = mix(desated, decoled, huediff);
 	float effect = rampTop(1-huediff,1)*amount*rampTop(avghsl.y,8);
+	rgb = mix(rgb, mix(vec3(oldlum), decoled, huediff), effect);// * rampBot(1-dev,0.5));
+	//rgb = Saturate(rgb, 0.5+0.5*(1-saw(1,1)));
+	//rgb.r = rgb.r-1*huefac*rgb.r;//*dot(rgb,vec3(1,0,0));
+	//rgb.g = rgb.g-1*huefac*rgb.g;//*dot(rgb,vec3(0,1,0));
+	//rgb.b = rgb.b-1*huefac*rgb.b;//*dot(rgb,vec3(0,0,1));
+	//rgb = rgb - clamp( net.avg.rgb*(dot(net.avg.rgb,rgb)), 0.0001, length(rgb) ); //good?
+	rgb = Saturate(rgb,1+(2*amount*effect));
+	float newlum = max(dot(rgb,percp), 1e-10); //prevent div by zero (1e-10 ~ epsilon)
+	rgb = rgb * (oldlum/newlum);
+	rgb = clamp(rgb,0,1);
+	//rgb = rgb * (oldlum/((rgb.r+rgb.g+rgb.b)/3));
+
+
+	// rgb = clamp(rgb, 0, 1);
+	return rgb;
+}
+
+vec3 Dehaze2(vec3 rgb, ColHist net, float amount)
+{
+	//float oldlum = (rgb.r+rgb.g+rgb.b)/3;
+	float oldlum = dot(rgb,percp);
+	rgb.r = clamp(rgb.r,0,1);
+	rgb.g = clamp(rgb.g,0,1);
+	rgb.b = clamp(rgb.b,0,1);
+
+
+	//dehaze
+	vec3 hsl = rgb2hsl(rgb);
+	//hsl.y = GetSat4(rgb);
+	vec3 avghsl = rgb2hsl(net.scol);
+	avghsl = clamp(avghsl, 0, 1);
+	//redo and check if closer to bounds
+	//float huediff = min(abs(hsl.x-avghsl.x), abs(avghsl.x+(1-hsl.x)));
+	float huediff = abs(mod((hsl.x-avghsl.x)+0.5,1)-0.5);
+	huediff = min(huediff, 1-huediff);
+	//float huediff = HueDiff(hsl.x, avghsl.x);
+	float dev = clamp(sqrt(length(net.var.rgb))/0.5,0,1); //wrong?
+	//float graymix =  rampBot(1-huediff,3) * rampBot(1-dev,0.5) * rampTop(avghsl.y,8);
+	//rgb = mix(rgb, vec3(oldlum), graymix*amount);// * rampBot(1-length(sqrt(net.var.rgb))/0.5,0.5) );
+	//rgb = Saturate(rgb,1+(1-graymix)*amount*(1-oldlum*1));
+	//rgb = rgb-hsl2rgb(vec3(avghsl.x,1,0.5))*rampTop(1-huediff,0.0733)*(hsl.y);//*amount*(1-oldlum*1);
+	// huediff = clamp(huediff*180,0,60)/60;
+	huediff = clamp(huediff*180,0,120)/120;
+	//graymix =  rampBot(1-huediff,1) * rampBot(1-dev,0.25);// * rampTop(avghsl.y,10);
+	//rgb = mix(rgb, vec3(oldlum), graymix*amount);// * rampBot(1-length(sqrt(net.var.rgb))/0.5,0.5) );
+	//rgb = Saturate(rgb,1+(1-graymix)*amount*(1-oldlum*1));
+	//vec3 desated = mix(rgb, vec3(oldlum), rampBot(graymix*amount,2));
+	vec3 decoled = clamp(rgb - net.scol,0,1);//*(1-huediff)*amount;
+	// vec3 decoled = clamp(rgb - hsl2rgb(vec3(avghsl.x,1,0.5)),0,1);//*(1-huediff)*amount;
+	//rgb = mix(desated, decoled, huediff);
+	float effect = rampTop(1-huediff,1)*amount;//*rampTop(avghsl.y,8);
 	rgb = mix(rgb, mix(vec3(oldlum), decoled, huediff), effect);// * rampBot(1-dev,0.5));
 	//rgb = Saturate(rgb, 0.5+0.5*(1-saw(1,1)));
 	//rgb.r = rgb.r-1*huefac*rgb.r;//*dot(rgb,vec3(1,0,0));
@@ -3162,7 +3255,16 @@ vec3 StandardProcessing(vec3 rgb)
 	return rgb;
 }
 
-vec4 FXStack() //stack all effects
+
+vec4 TNFix(vec4 c) //TN display view angle fix
+{
+	float curve = pow(1-texcoord.y/textureSize(tex, 0).y, 5);
+	c.rgb = rampBot(c.rgb, mix(1, 0.7, curve) );
+	c.rgb *= 0.4 + 0.6*pow(1-texcoord.y/textureSize(tex, 0).y, 2);
+	return c;
+}
+
+vec4 FXStack_Fullscreen() //stack all effects
 {
 	vec4 c;// = vec4(1.0, 0.25, 0.25, 1.0); //red screen if smth failed
 
@@ -3182,10 +3284,10 @@ vec4 FXStack() //stack all effects
 		vec2 texelSize = 1.0 / texSize;
 		vec2 uv = texcoord * texelSize;
 		// c = BarrelDist(tex, uv, vec2(2,1), 0, true, BARREL_DISTORTION);
-		c = BarrelDist2(tex,uv, vec2(1.0,0.5), 0, false, -1); //zoomed
-		//c = BarrelDist2(tex,uv, vec2(2.0,1.0), 0, true, -1); //cropped
+		//c = BarrelDist2(tex,uv, vec2(1.0,0.5), 0, false, -1); //zoomed
+		c = BarrelDist2(tex,uv, vec2(2.0,1.0), 0, true, -1); //cropped
 		colHist = GetColor8x4Optimized(tex);
-		c.rgb = Dehaze(c.rgb, colHist, AutoBalance);
+		c.rgb = Dehaze2(c.rgb, colHist, AutoBalance);
 		c.rgb = ExpandExposure(c.rgb, colHist, ExposureExpansion, ExposureExpansionIgnoreLevel);
 		c.rgb = rampBot(c.rgb, 2);
 		c.rgb = FixSat2(c.rgb);
@@ -3208,7 +3310,7 @@ vec4 FXStack() //stack all effects
 	//heavy, calculate only if needed!
 	if (Lum!=0 || AutoBalance!=0) colHist = GetColor8x4Optimized(tex);
 
-	if (AutoBalance != 0) c.rgb = Dehaze(c.rgb, colHist, AutoBalance);
+	if (AutoBalance != 0) c.rgb = Dehaze2(c.rgb, colHist, AutoBalance);
 
 	if (Lum == 1) //dynamic exposure expansion
     {
@@ -3236,11 +3338,12 @@ vec4 FXStack() //stack all effects
 	//c.rgb = rampBot(c.rgb, 0.66);
 	//c.rgb = rampMid(c.rgb,1.2);
 
-	if (Dim > 0 ) c.rgb = DimWhites(c.rgb, Dim, DimThreshold, DimSlope, DimCompensation, 0); //suppress whites
+	//if (Dim > 0 ) c.rgb = DimWhites(c.rgb, Dim, DimThreshold, DimSlope, DimCompensation, 0); //suppress whites
 
 	if (FakeHdr == 1) c.rgb = FixSat(c.rgb); else if (FakeHdr == 2) c.rgb = FixSat2(c.rgb); else if (Saturation != 1 ) c.rgb = Saturate(c.rgb, Saturation);
-	c.rgb = CompressHueCMY(c.rgb, 2);
-	if (Lum==1) c.rgb = GammaCorrect(c.rgb, 1/0.5);
+	c.rgb = CompressHueCMY(c.rgb, 3);
+	// if (Lum==1) c.rgb = GammaCorrect(c.rgb, 1/0.5);
+	if (Lum==1) c.rgb = ExpandExposurePostCompensate(c.rgb, 0.5); else if (Lum==2) c.rgb = rampBot(c.rgb, 2.2); //color effects must be applied in linear space, then gamma corrected?
 
 	//if (true) c.rgb = SaturateLows(c.rgb,Saturation,64,0);
 
@@ -3260,9 +3363,11 @@ vec4 FXStack() //stack all effects
 	if (Debug > 0) c.rgb = debug(c.rgb, debugValue);
 	//---
 
+
 	//REPLACE=fullscreen.part2.glsl
 
 	//c.a = 1; //disable transparency
+	c = TNFix(c);
 	return c;
 }
 
@@ -3300,6 +3405,7 @@ vec4 FXStack_Basic()
 
 	//if (Gamma != 1) c.rgb = GammaCorrect(c.rgb, 1/Gamma); //if hardware not supported
 
+	if (Dim > 0 ) c.rgb = DimWhites(c.rgb, Dim, DimThreshold, DimSlope, 0, 0); //suppress whites
 
 	//c.rgb = StandardProcessing(c.rgb);
 	if (Saturation != 1 ) c.rgb = Saturate(c.rgb, Saturation);
@@ -3321,10 +3427,25 @@ vec4 FXStack_Basic()
 	return c;
 }
 
+vec4 FXStack_Windowed()
+{
+	vec4 c = FXStack_Basic();
+	c.rgb *= 0.5; //compensate for TNFix
+	return c;
+}
+
+vec4 FXStack_Maximized()
+{
+	vec4 c = FXStack_Basic();
+	c = TNFix(c);
+	return c;
+}
+
 
 #define CURRENT_FXSTACK FXStack_Basic
 
 vec4 window_shader() //picom specific entry function
 {
-	return default_post_processing(CURRENT_FXSTACK());
+	vec4 c = default_post_processing(CURRENT_FXSTACK());
+	return c;
 }
