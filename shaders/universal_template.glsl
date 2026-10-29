@@ -62,6 +62,8 @@
 #define ExposureExpansionSlope EXPOSURE_EXPANSION_SLOPE_VALUE //curve sloppiness
 #define ExposureExpansionIgnoreLevel  EXPOSURE_EXPANSION_IGNORE_LEVEL_VALUE //stop boosting if too dark
 
+#define UseTNFix 0 //fixes TN display vertical angle crappiness by sacrificing some overall brightness 
+
 #define LumaResX 8
 #define LumaResY 4
 
@@ -3286,6 +3288,25 @@ vec4 FXStack_Fullscreen() //stack all effects
 		// c = BarrelDist(tex, uv, vec2(2,1), 0, true, BARREL_DISTORTION);
 		//c = BarrelDist2(tex,uv, vec2(1.0,0.5), 0, false, -1); //zoomed
 		c = BarrelDist2(tex,uv, vec2(2.0,1.0), 0, true, -1); //cropped
+		//colHist = GetColor8x4Optimized(tex);
+		//c.rgb = Dehaze2(c.rgb, colHist, AutoBalance);
+		//c.rgb = ExpandExposure(c.rgb, colHist, ExposureExpansion, ExposureExpansionIgnoreLevel);
+		//c.rgb = rampBot(c.rgb, 2);
+		//c.rgb = FixSat2(c.rgb);
+		//c.rgb = CompressHueCMY(c.rgb, 2);
+		//if (Saturation != 1 ) c.rgb = Saturate(c.rgb, Saturation);
+		return c;
+	}
+
+
+	if (UseEffects == -2)
+	{
+		vec2 texSize = textureSize(tex, 0);
+		vec2 texelSize = 1.0 / texSize;
+		vec2 uv = texcoord * texelSize;
+		// c = BarrelDist(tex, uv, vec2(2,1), 0, true, BARREL_DISTORTION);
+		//c = BarrelDist2(tex,uv, vec2(1.0,0.5), 0, false, -1); //zoomed
+		c = BarrelDist2(tex,uv, vec2(2.0,1.0), 0, true, -1); //cropped
 		colHist = GetColor8x4Optimized(tex);
 		c.rgb = Dehaze2(c.rgb, colHist, AutoBalance);
 		c.rgb = ExpandExposure(c.rgb, colHist, ExposureExpansion, ExposureExpansionIgnoreLevel);
@@ -3325,7 +3346,7 @@ vec4 FXStack_Fullscreen() //stack all effects
 	if (ExpandBlacks > 0) c.rgb = BoostLows(c.rgb, ExpandBlacks+1, 1, ExpandBlacksSlope); //boost shadows, fixed multiplier
 
 
-	if (UseEffects == -2) //for testing
+	if (UseEffects == -3) //for testing
 	{
 		c.rgb = FixSat2(c.rgb);
 
@@ -3340,7 +3361,7 @@ vec4 FXStack_Fullscreen() //stack all effects
 
 	//if (Dim > 0 ) c.rgb = DimWhites(c.rgb, Dim, DimThreshold, DimSlope, DimCompensation, 0); //suppress whites
 
-	if (FakeHdr == 1) c.rgb = FixSat(c.rgb); else if (FakeHdr == 2) c.rgb = FixSat2(c.rgb); else if (Saturation != 1 ) c.rgb = Saturate(c.rgb, Saturation);
+	if (FakeHdr == 1) c.rgb = FixSat2(c.rgb); else if (Saturation != 1 ) c.rgb = Saturate(c.rgb, Saturation);
 	c.rgb = CompressHueCMY(c.rgb, 3);
 	// if (Lum==1) c.rgb = GammaCorrect(c.rgb, 1/0.5);
 	if (Lum==1) c.rgb = ExpandExposurePostCompensate(c.rgb, 0.5); else if (Lum==2) c.rgb = rampBot(c.rgb, 2.2); //color effects must be applied in linear space, then gamma corrected?
@@ -3367,7 +3388,7 @@ vec4 FXStack_Fullscreen() //stack all effects
 	//REPLACE=fullscreen.part2.glsl
 
 	//c.a = 1; //disable transparency
-	c = TNFix(c);
+	if (UseTNFix > 0) c = TNFix(c);
 	return c;
 }
 
@@ -3430,14 +3451,14 @@ vec4 FXStack_Basic()
 vec4 FXStack_Windowed()
 {
 	vec4 c = FXStack_Basic();
-	c.rgb *= 0.5; //compensate for TNFix
+	if (UseTNFix > 0) c.rgb *= 0.6; //compensate for TNFix
 	return c;
 }
 
 vec4 FXStack_Maximized()
 {
 	vec4 c = FXStack_Basic();
-	c = TNFix(c);
+	if (UseTNFix > 0) c = TNFix(c);
 	return c;
 }
 

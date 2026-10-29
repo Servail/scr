@@ -38,9 +38,15 @@ ratio=$(echo "scale=2 ; $var / 100" | bc)
 bcontrast=$(echo "scale=2 ; $contrast * $ratio" | bc)
 
 xcalib \
--red "$invgamma" "$rbrightness" "$rcontrast" \
--green "$invgamma" "$gbrightness" "$gcontrast" \
--blue "$invgamma" "$bbrightness" "$bcontrast" \
+--red-gamma "$invgamma" \
+--red-brightness "$rbrightness" \
+--red-contrast "$rcontrast" \
+--green-gamma "$invgamma" \
+--green-brightness "$gbrightness" \
+--green-contrast "$gcontrast" \
+--blue-gamma "$invgamma" \
+--blue-brightness "$bbrightness" \
+--blue-contrast "$bcontrast" \
 "$icc" &
 
 exit 0

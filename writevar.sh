@@ -20,7 +20,7 @@ if [ -z "$value" ]; then
   echo "$varname=$newval" >> "$conf"
   echo "New variable $varname=$newval added to config file"
 else
-  sed -i "s/^$varname=.*/$varname=$newval/" "$conf"
+  sed -i --follow-symlinks "s/^$varname=.*/$varname=$newval/" "$conf"
   echo "Variable $varname changed from $value to $newval"
 fi
 

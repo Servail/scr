@@ -87,6 +87,8 @@ cfgredf BlackLightness black-lightness
 
 cfgredf AutoBalance autobalance
 
+cfgredf UseTNFix tnfix
+
 #sed -i "s\R_VALUE\\$(~/scr/readvar.sh "$conf" r)\g" "$tempshader"
 
 #sed -i "s\G_VALUE\\$(~/scr/readvar.sh "$conf" g)\g" "$tempshader"
@@ -98,9 +100,12 @@ cfgredf AutoBalance autobalance
 #picom --backend glx --no-use-damage --window-shader-fg-rule "$tempshader":'_NET_WM_STATE@[*] *?= "MAXIMIZED" || _NET_WM_STATE@[*] *?= "FULLSCREEN"' & disown
 #picom --backend glx --no-use-damage --window-shader-fg-rule $fullscreenshader:'focused=1' --window-shader-fg-rule $windowshader:'focused=0' & disown
 
-fullscreenshader=/dev/shm/fullscreen_shader.glsl
-windowshader=/dev/shm/window_shader.glsl
-maximizedshader=/dev/shm/maximized_shader.glsl
+
+ramdir=/run/user/$(id -u)/scr
+mkdir "$ramdir"
+fullscreenshader="$ramdir"/fullscreen_shader.glsl
+windowshader="$ramdir"/window_shader.glsl
+maximizedshader="$ramdir"/maximized_shader.glsl
 
 cp -f "$tempshader" "$fullscreenshader"
 cp -f "$tempshader" "$windowshader"

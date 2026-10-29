@@ -1,0 +1,11 @@
+[Unit]
+Description=Move active files to RAM on startup (replacing with links), then save them back to disk on shutdown, to minimize disk writes
+
+[Service]
+Type=oneshot
+ExecStart=%Y/service-start.sh
+ExecStop=%Y/service-stop.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target

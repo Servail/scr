@@ -1,0 +1,10 @@
+[Unit]
+Description=Apply current scr settings
+
+[Service]
+Type=oneshot
+ExecStart=%Y/current-apply.sh
+RemainAfterExit=no
+
+[Install]
+WantedBy=default.target
